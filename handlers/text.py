@@ -2,7 +2,7 @@ import logging
 import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
-from ML.responses import get_text_response
+from ML.text_processor import text_processor
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     # Имитируем обработку (небольшая задержка)
     await asyncio.sleep(1.5)
     
-    # Получаем случайный ответ из ML модуля
-    response = get_text_response()
+    # Получаем ответ из ML модуля
+    response = text_processor.generate_response(text)
     
     # Удаляем сообщение об обработке и отправляем ответ
     await processing_msg.delete()

@@ -2,7 +2,6 @@ import logging
 import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
-from ML.responses import get_voice_response
 from ML.whisper_transcriber import transcriber
 from ML.text_processor import text_processor
 from ML.cuda_manager import cuda_manager
@@ -40,12 +39,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         # Генерируем ответ на основе транскрипции
         response = text_processor.generate_response(transcribed_text)
         
-        # Форматируем финальный ответ
-        final_response = text_processor.format_transcription_response(transcribed_text, response)
-        
         # Удаляем сообщение об обработке и отправляем ответ
         await processing_msg.delete()
-        await update.message.reply_text(final_response, parse_mode='Markdown')
+        await update.message.reply_text(response, parse_mode='Markdown')
         
         logger.info(f"Успешно обработано голосовое сообщение. Транскрипция: {transcribed_text[:50]}...")
         
@@ -56,6 +52,5 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await processing_msg.edit_text("❌ Ошибка обработки. Отправляю стандартный ответ...")
         await asyncio.sleep(1.0)
         
-        fallback_response = get_voice_response()
         await processing_msg.delete()
-        await update.message.reply_text(f"🎤 Голосовое сообщение получено!\n\n🤖 {fallback_response}")
+        await update.message.reply_text(f"🎤 Голосовое сообщение получено!\n\n🤖")
