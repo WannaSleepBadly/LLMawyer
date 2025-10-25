@@ -6,20 +6,18 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     keyboard = [
         [InlineKeyboardButton("🎤 Отправить голосовое", callback_data='voice_info')],
         [InlineKeyboardButton("💬 Отправить текст", callback_data='text_info')],
-        [InlineKeyboardButton("❓ Помощь", callback_data='help')],
         [InlineKeyboardButton("🔙 Главное меню", callback_data='back')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        "📋 Меню команд:\n\n"
-        "🎤 Голосовые сообщения\n"
-        "• Отправьте голосовое сообщение\n"
-        "• Получите транскрипцию с помощью Whisper\n"
-        "• Получите умный ответ на основе содержания\n\n"
-        "💬 Текстовые сообщения\n"
-        "• Отправьте любой текст\n"
-        "• Получите обработанный ответ\n\n"
-        "⚡ Все сообщения обрабатываются с индикатором прогресса",
+        "📚 Справка по боту:\n\n"
+        "Бот принимает голосовые и текстовые сообщения и отвечает на вопросы о законодательстве."
+        "При указании конкретных статьей и законов, ответ будет более точным.\n"
+        "Просто отправьте голосовое или текстовое сообщение и получите ответ.\n\n"
+        "Доступные команды:\n"
+        "• /start - начать работу с ботом\n"
+        "• /menu - показать меню команд\n"
+        "• /status - показать статус системы и CUDA",
         reply_markup=reply_markup
     )
