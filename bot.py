@@ -5,7 +5,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from dotenv import load_dotenv
 
 # Импорты из модулей
-from commands import start_command, help_command, menu_command
+from commands import start_command, help_command, menu_command, status_command
 from handlers import handle_voice, handle_text, handle_other, button_callback
 
 # Загружаем переменные окружения
@@ -34,6 +34,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("menu", menu_command))
+    application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.VOICE, handle_voice))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
