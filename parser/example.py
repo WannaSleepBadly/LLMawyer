@@ -1,12 +1,3 @@
-"""
-Пример использования парсера законов с PostgreSQL.
-
-Этот файл демонстрирует, как:
-1. Подключиться к базе данных
-2. Запустить парсинг закона
-3. Проверить сохраненные данные
-"""
-
 import os
 import sys
 from datetime import date
@@ -29,7 +20,7 @@ def check_database_connection():
         repo = LawRepository(db)
         
         # Простой запрос для проверки подключения
-        result = db.execute("SELECT 1 as test")
+        result = db.execute("\dt")
         test_value = result.scalar()
         
         if test_value == 1:
@@ -86,13 +77,13 @@ def show_law_structure(law_code: str = "38-FZ"):
         db = SessionLocal()
         
         # Найти закон
-        law = db.query(Law).filter(Law.law_code == law_code).first()
+        law = db.query(Law).filter(Law.code == law_code).first()
         
         if not law:
-            print(f"❌ Закон {law_code} не найден")
+            print(f"❌ Закон {code} не найден")
             return
         
-        print(f"📋 Закон: {law.law_name}")
+        print(f"📋 Закон: {law.name}")
         print(f"📅 Загружен: {law.created_at}")
         
         # Показать главы
@@ -106,20 +97,19 @@ def show_law_structure(law_code: str = "38-FZ"):
             # Показать части главы
             parts = db.query(LawPart).filter(
                 LawPart.chapter_id == chapter.id
-            ).order_by(LawPart.part_number).all()
+            ).order_by(LawPart.number).all()
             
             for part in parts:
                 print(f"   📄 {part.title}")
-                print(f"      Номер: {part.part_number}")
-                print(f"      URL: {part.source_url}")
-                
+                print(f"      Номер: {part.number}")
+                  
                 # Показать пункты части
                 paragraphs = db.query(LawParagraph).filter(
                     LawParagraph.part_id == part.id
-                ).order_by(LawParagraph.paragraph_number).all()
+                ).order_by(LawParagraph.number).all()
                 
                 for paragraph in paragraphs:
-                    print(f"      📝 Пункт {paragraph.paragraph_number}: {paragraph.content[:100]}...")
+                    print(f"      📝 Пункт {paragraph.number}: {paragraph.content[:100]}...")
                 
     except Exception as e:
         print(f"❌ Ошибка получения структуры: {e}")
@@ -135,7 +125,7 @@ def search_in_law_content(search_term: str, law_code: str = "38-FZ"):
         db = SessionLocal()
         
         # Найти закон
-        law = db.query(Law).filter(Law.law_code == law_code).first()
+        law = db.query(Law).filter(Law.code == law_code).first()
         
         if not law:
             print(f"❌ Закон {law_code} не найден")
@@ -150,7 +140,7 @@ def search_in_law_content(search_term: str, law_code: str = "38-FZ"):
         if paragraphs:
             print(f"📝 Найдено в {len(paragraphs)} пунктах:")
             for paragraph in paragraphs:
-                print(f"   - Пункт {paragraph.paragraph_number}")
+                print(f"   - Пункт {paragraph.number}")
                 # Показать фрагмент текста
                 content = paragraph.content
                 start = content.lower().find(search_term.lower())

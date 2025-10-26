@@ -1,6 +1,5 @@
 """
 Парсер закона «О рекламе» с КонсультантПлюс.
-Адаптировано из drafts/parse.py для сохранения в PostgreSQL.
 """
 import re
 import time
@@ -12,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from sqlalchemy.orm import Session
 
-from .models import SessionLocal, engine, LawRepository
+from models import SessionLocal, engine, LawRepository
 
 
 # Константы
@@ -259,15 +258,16 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
     """Сохранение спарсенных данных в БД со структурой: закон -> глава -> часть -> пункт"""
     db = SessionLocal()
     repo = LawRepository(db)
-    
+    print('⚠️', 'Начали сохранять структуру')
     try:
         # 1. Проверяем, существует ли уже закон
         existing_law = repo.get_law_by_code(LAW_CODE)
+        print('⚠️', existing_law)
         if existing_law:
             print(f"⚠️ Закон {LAW_CODE} уже существует в БД. Удаляем старые данные...")
             db.delete(existing_law)
             db.commit()
-        
+        print('⚠️ Создаём закон....')
         # 2. Создаем новый закон
         law = repo.create_law(
             law_name=law_name,
@@ -275,7 +275,7 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
             source_url=LAW_BASE_URL
         )
         
-        print(f"✅ Создан закон ID={law.id}: {law_name}")
+        print(f"✅ Создан закон ID={law.law_id}: {law_name}")
         
         # 3. Парсинг и сохранение по структуре: глава → части → пункты
         total_count = 0
@@ -291,10 +291,9 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
                 chapter_num = int(match.group(1)) if match else 0
                 
                 chapter = repo.create_chapter(
-                    law_id=law.id,
+                    law_id=law.law_id,
                     chapter_number=chapter_num,
                     title=parsed["title"],
-                    source_url=parsed["url"]
                 )
                 total_count += 1
                 
@@ -314,11 +313,9 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
                     part_num = match.group(1) if match else "0"
                     
                     part = repo.create_part(
-                        law_id=law.id,
-                        chapter_id=chapter.id,
+                        chapter_id=chapter.chapter_id,
                         part_number=part_num,
                         title=parsed["title"],
-                        source_url=parsed["url"]
                     )
                     total_count += 1
                     
@@ -326,12 +323,9 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
                     paragraphs = parse_paragraphs_from_content(parsed["content"])
                     for paragraph_data in paragraphs:
                         paragraph = repo.create_paragraph(
-                            law_id=law.id,
-                            chapter_id=chapter.id,
-                            part_id=part.id,
+                            part_id=part.part_id,
                             paragraph_number=paragraph_data["number"],
-                            content=paragraph_data["content"],
-                            source_url=parsed["url"]
+                            content=paragraph_data["content"]
                         )
                         total_count += 1
                     
@@ -430,7 +424,6 @@ def parse_and_save_law(law_url: str = LAW_BASE_URL) -> None:
     
     # 3. Извлечение структуры
     structure = extract_structured_links(toc_html, law_url)
-    
     # Подсчет общего количества документов
     total_docs = len(structure) + sum(len(ch["articles"]) for ch in structure)
     print(f"📚 Найдено {len(structure)} глав, {total_docs} документов для парсинга")
@@ -439,3 +432,6 @@ def parse_and_save_law(law_url: str = LAW_BASE_URL) -> None:
     save_to_database(structure, metadata["law_name"])
     
     print("🎉 Парсинг закона завершён успешно!")
+
+
+parse_and_save_law()

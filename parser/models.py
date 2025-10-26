@@ -1,19 +1,19 @@
+import os
+from typing import List, Optional#, Text
+from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, text, Text, DateTime, ForeignKey
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.exc import SQLAlchemyError
+
 """
 Модуль для работы с PostgreSQL базой данных.
 Содержит модели, подключение и репозиторий для работы с законами.
 Структура: закон -> глава -> часть (статья) -> пункт
 """
-import os
-from typing import List, Optional
-from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
-from sqlalchemy.exc import SQLAlchemyError
 
 # Базовый класс для моделей
 Base = declarative_base()
-
 
 class Law(Base):
     """Модель закона"""
@@ -62,7 +62,7 @@ class LawParagraph(Base):
     __tablename__ = 'paragraphs'
     
     paragraph_id = Column(Integer, primary_key=True)
-    part_id = Column(Integer, ForeignKey('law_parts.id'), nullable=False)
+    part_id = Column(Integer, ForeignKey('parts.part_id'), nullable=False)
     number = Column(String(50), nullable=False)  # Номер пункта
     content = Column(Text, nullable=False)  # Исходный текст пункта
 
@@ -101,7 +101,7 @@ class DatabaseManager:
         """Тестирование подключения к базе данных"""
         try:
             with self.get_session() as session:
-                session.execute("SELECT 1")
+                session.execute(text("SELECT 1"))
                 print("✅ Подключение к базе данных успешно")
                 return True
         except SQLAlchemyError as e:
@@ -122,6 +122,7 @@ class LawRepository:
             code=law_code,
             source_url=source_url
         )
+        print('⚠️', law)
         self.session.add(law)
         self.session.flush()  # Получаем ID без коммита
         return law
@@ -199,12 +200,10 @@ class LawRepository:
 
 
 # Глобальные переменные для подключения
-# Получаем URL из переменной окружения или используем значение по умолчанию
-DATABASE_URL = os.getenv(
-    'DATABASE_URL', 
-    'postgresql://postgres:password@localhost:5432/llmawyer'
-)
+from config import DatabaseConfig
 
+db_config = DatabaseConfig()
+DATABASE_URL = db_config.get_database_url()
 # Создаем менеджер базы данных
 db_manager = DatabaseManager(DATABASE_URL)
 engine = db_manager.engine

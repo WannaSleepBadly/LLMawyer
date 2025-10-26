@@ -1,8 +1,11 @@
+import os
+from dotenv import load_dotenv
+
 """
 Конфигурация для подключения к PostgreSQL базе данных.
 """
-import os
 
+load_dotenv()
 class DatabaseConfig:
     """Конфигурация базы данных"""
     
@@ -12,7 +15,7 @@ class DatabaseConfig:
     DB_NAME = os.getenv('DB_NAME', 'llmawyer')
     DB_USER = os.getenv('DB_USER', 'postgres')
     DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
-    
+
     @classmethod
     def get_database_url(cls) -> str:
         """Получение URL подключения к базе данных"""
@@ -21,7 +24,7 @@ class DatabaseConfig:
 
 def setup_database():
     """Настройка базы данных"""
-    from .models import DatabaseManager
+    from models import DatabaseManager
     
     db_url = DatabaseConfig.get_database_url()
     db_manager = DatabaseManager(db_url)
