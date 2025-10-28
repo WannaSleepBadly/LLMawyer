@@ -116,16 +116,16 @@ class MilvusManager:
             collection = self.get_collection()
             if not collection:
                 return False
-            
-            insert_data = {
-                "paragraph_id": [item["paragraph_id"] for item in data],
-                "embedding": [item["embedding"] for item in data]
-            }
+
+            insert_data = [
+                [item["paragraph_id"] for item in data],
+                [item["embedding"] for item in data]
+            ]
             
             collection.insert(insert_data)
             collection.flush()
             
-            logger.info(f"Добавлено {len(data)} записей")
+            logger.info(f"✔️ Добавлено {len(data)} записей")
             return True
             
         except MilvusException as e:
@@ -135,7 +135,7 @@ class MilvusManager:
     def search_similar(
         self, 
         query_embedding: List[float], 
-        top_k: int = 10,
+        top_k: int = 3,
         score_threshold: float = 0.7
     ) -> List[Dict[str, Any]]:
         """Поиск похожих пунктов закона"""

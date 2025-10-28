@@ -49,13 +49,13 @@ class RAGSearchService:
                 Law, LawChapter.law_id == Law.law_id
             ).all()
             
-            logger.info(f"Found {len(paragraphs_query)} paragraphs to process")
+            logger.info(f"🔎 Found {len(paragraphs_query)} paragraphs to process")
             
             total_processed = 0
             
             for i in range(0, len(paragraphs_query), batch_size):
                 batch = paragraphs_query[i:i + batch_size]
-                logger.info(f"Processing batch {i//batch_size + 1}/{(len(paragraphs_query) + batch_size - 1)//batch_size}")
+                logger.info(f"📦 Processing batch {i//batch_size + 1}/{(len(paragraphs_query) + batch_size - 1)//batch_size}")
                 
                 batch_data = []
                 texts = []
@@ -73,7 +73,6 @@ class RAGSearchService:
                         batch_data[j]["embedding"] = embedding
                 
                 valid_data = [item for item in batch_data if "embedding" in item]
-                
                 if valid_data:
                     if self.milvus_manager.insert_data(valid_data):
                         total_processed += len(valid_data)
@@ -81,7 +80,7 @@ class RAGSearchService:
                     else:
                         logger.error("Insert error")
                         return False
-            
+
             logger.info(f"Total processed {total_processed} paragraphs")
             db.close()
             return True

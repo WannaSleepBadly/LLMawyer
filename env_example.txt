@@ -5,3 +5,5 @@ DB_PORT=5432
 DB_NAME=llmawyer
 DB_USER=postgres
 DB_PASSWORD=password
+
+EMBEDDING_MODEL=deepvk/USER2-base

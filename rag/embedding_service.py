@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """Модель эмбеддингов"""
     
-    def __init__(self, model_name: Optional[str] = None):
+    def __init__(self):
         self.model_name = os.getenv("EMBEDDING_MODEL", "deepvk/USER2-base")
         self.model = None
         self.embedding_dim = None

@@ -437,4 +437,5 @@ def parse_and_save_law(law_url: str = LAW_BASE_URL) -> None:
     exit(0)
 
 
-parse_and_save_law()
+if __name__ == "__main__":
+    parse_and_save_law()
