@@ -92,7 +92,26 @@ class MilvusManager:
         except MilvusException as e:
             logger.error(f"Ошибка создания коллекции: {e}")
             return False
-    
+
+    def delete_collection(self) -> bool:
+        try:
+            if utility.has_collection(self.collection_name):
+                collection = Collection(
+                    name=self.collection_name,
+                    using=self.connection_alias
+                )
+
+                collection.drop()
+                logger.info("✅ Коллекция полностью удалена")
+                return True
+            else:
+                logger.info("✅ Коллекции не было, нечего удалять")
+                return True
+
+        except Exception as e:
+            logger.error(f"Ошибка удаления коллекции: {e}")
+            return False
+
     def get_collection(self) -> Optional[Collection]:
         """Получение коллекции"""
         try:

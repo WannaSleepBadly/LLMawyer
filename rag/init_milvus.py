@@ -55,7 +55,7 @@ def main():
             response = input("Хотите перезаполнить коллекцию? (y/n): ")
             if response.lower() == 'y':
                 logger.info("🔄 Перезаполняем коллекцию...")
-                if not rag_service.populate_milvus_from_postgres():
+                if not rag_service.populate_milvus_from_postgres(drop_existing=True):
                     logger.error("❌ Не удалось заполнить коллекцию")
                     return False
             else:
@@ -63,7 +63,7 @@ def main():
         else:
             # Заполняем коллекцию данными из PostgreSQL
             logger.info("🔄 Заполняем коллекцию данными из PostgreSQL...")
-            if not rag_service.populate_milvus_from_postgres():
+            if not rag_service.populate_milvus_from_postgres(drop_existing=False):
                 logger.error("❌ Не удалось заполнить коллекцию")
                 return False
         
@@ -80,6 +80,7 @@ def main():
             logger.info(f"✅ Тестовый поиск успешен. Найдено {len(results)} результатов:")
             for i, result in enumerate(results[:3], 1):
                 logger.info(f"  {i}. {result['content'][:100]}... (score: {result['similarity_score']:.3f})")
+                logger.info(result)
         else:
             logger.warning("⚠️ Тестовый поиск не вернул результатов")
         

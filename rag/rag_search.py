@@ -36,9 +36,13 @@ class RAGSearchService:
             logger.error(f"Initialization error: {e}")
             return False
     
-    def populate_milvus_from_postgres(self, batch_size: int = 100) -> bool:
+    def populate_milvus_from_postgres(self, batch_size: int = 100, drop_existing: bool = True) -> bool:
         """Populate Milvus with data from PostgreSQL"""
         try:
+            if drop_existing and not self.milvus_manager.delete_collection() and not self.initialize():
+                logger.error("Не удалось удалить существующую коллекцию")
+                return False
+
             db = SessionLocal()
             
             paragraphs_query = db.query(LawParagraph).join(
