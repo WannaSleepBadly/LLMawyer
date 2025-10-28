@@ -6,7 +6,13 @@ from dotenv import load_dotenv
 
 # Импорты из модулей
 from commands import start_command, menu_command, status_command
-from handlers import handle_voice, handle_text, handle_other, button_callback
+from handlers import handle_text, handle_voice, handle_text, handle_other, button_callback
+''''
+from handlers.text import handle_text#handle_voice, handle_text, handle_other, button_callback
+from handlers.voice import handle_voice
+from handlers.other import handle_other
+from handlers.buttons import button_callback
+'''
 
 # Загружаем переменные окружения
 load_dotenv()

@@ -4,5 +4,6 @@ from .text_processor import text_processor, TextProcessor
 from .cuda_manager import cuda_manager, CUDAManager
 
 __all__ = [
-    'WhisperTranscriber','TextProcessor', 'CUDAManager'
+    'WhisperTranscriber','TextProcessor', 'CUDAManager',
+    'cuda_manager', 'text_processor', 'transcriber'
 ]

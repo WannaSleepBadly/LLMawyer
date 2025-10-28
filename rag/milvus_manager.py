@@ -213,3 +213,5 @@ class MilvusManager:
             logger.error(f"Stats error: {e}")
             return {}
 
+
+milvus_manager = MilvusManager()

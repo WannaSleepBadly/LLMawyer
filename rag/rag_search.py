@@ -205,4 +205,3 @@ class RAGSearchService:
             logger.info("Resources cleaned")
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
-

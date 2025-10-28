@@ -1,6 +1,7 @@
 import logging
 import random
 from typing import Optional
+from rag.rag_search import RAGSearchService
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +20,31 @@ class TextProcessor:
             str: Сгенерированный ответ
         """
         try:
-            
-            response = "Заглушка для ответа."
-                   
-            logger.info(f"Сгенерирован ответ для текста: {text[:50]}...")
-            
+            logger.info(f"✨ Обрабатываем текст: {text[:50]}")
+
+            # TODO: Сделать нормальную загрузку rag сервиса вне функции
+            rag_service = RAGSearchService()
+
+            logger.info("🔄 Инициализируем RAG сервис...")
+            if not rag_service.initialize():
+                logger.error("❌ Не удалось инициализировать RAG сервис")
+
+            results = rag_service.search_similar_paragraphs(text, top_k=5)
+            response = self.format_response(results)
+
+            logger.info(f"✨ Найденные похожие пункты закона: {response}")
             return response
             
         except Exception as e:
             logger.error(f"Ошибка генерации ответа: {e}")
-            return random.choice(self.responses["default"])
+            return "Ваш вопрос слишком сложный, я не могу на него ответить. Попробуйте перефразировать."
+
+    def format_response(self, response: list[dict[str, any]]) -> str:
+        """Форматирование ответа о похожих на запрос пользователя пунктов закона"""
+        for_response = ""
+        for paragraph in response:
+            for_response += str(paragraph)
+        return for_response
 
 # Глобальный экземпляр процессора текста
 text_processor = TextProcessor()
