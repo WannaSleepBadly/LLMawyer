@@ -9,7 +9,7 @@
 - setup: Скрипт настройки окружения
 """
 
-from .law_parser import parse_and_save_law, LAW_CODE, LAW_NAME, LAW_BASE_URL
+from .law_parser import LAW_CODE, LAW_NAME, LAW_BASE_URL
 from .models import (
     Base, Law, LawChapter, LawPart, LawParagraph,
     DatabaseManager, LawRepository, SessionLocal, engine
@@ -18,7 +18,6 @@ from .config import DatabaseConfig, setup_database
 
 __all__ = [
     # Основные функции
-    'parse_and_save_law',
     'setup_database',
     
     # Константы

@@ -37,6 +37,7 @@ class LawChapter(Base):
     law_id = Column(Integer, ForeignKey('laws.law_id'), nullable=False)
     number = Column(Integer, nullable=False)  # Номер главы
     title = Column(String(500), nullable=False)  # Название главы
+    source_url = Column(String(1000), nullable=False)  # Ссылка на источник
 
     # Связи
     law = relationship("Law", back_populates="chapters")
@@ -51,7 +52,8 @@ class LawPart(Base):
     chapter_id = Column(Integer, ForeignKey('chapters.chapter_id'), nullable=False)
     number = Column(String(50), nullable=False)  # Номер части/статьи
     title = Column(String(500), nullable=False)  # Название части/статьи
-    
+    source_url = Column(String(1000), nullable=False)  # Ссылка на источник
+
     # Связи
     chapter = relationship("LawChapter", back_populates="parts")
     paragraphs = relationship("LawParagraph", back_populates="part", cascade="all, delete-orphan")
@@ -127,23 +129,25 @@ class LawRepository:
         self.session.flush()  # Получаем ID без коммита
         return law
     
-    def create_chapter(self, law_id: int, chapter_number: int, title: str) -> LawChapter:
+    def create_chapter(self, law_id: int, chapter_number: int, title: str, source_url: str) -> LawChapter:
         """Создание главы закона"""
         chapter = LawChapter(
             law_id=law_id,
             number=chapter_number,
-            title=title
+            title=title,
+            source_url=source_url
         )
         self.session.add(chapter)
         self.session.flush()  # Получаем ID без коммита
         return chapter
     
-    def create_part(self, chapter_id: int, part_number: str, title: str) -> LawPart:
+    def create_part(self, chapter_id: int, part_number: str, title: str, source_url: str) -> LawPart:
         """Создание части/статьи закона"""
         part = LawPart(
             chapter_id=chapter_id,
             number=part_number,
-            title=title
+            title=title,
+            source_url=source_url
         )
         self.session.add(part)
         self.session.flush()  # Получаем ID без коммита
@@ -200,7 +204,7 @@ class LawRepository:
 
 
 # Глобальные переменные для подключения
-from config import DatabaseConfig
+from .config import DatabaseConfig
 
 db_config = DatabaseConfig()
 DATABASE_URL = db_config.get_database_url()
@@ -208,3 +212,4 @@ DATABASE_URL = db_config.get_database_url()
 db_manager = DatabaseManager(DATABASE_URL)
 engine = db_manager.engine
 SessionLocal = db_manager.SessionLocal
+db_manager.create_tables()

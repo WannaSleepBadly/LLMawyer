@@ -11,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from sqlalchemy.orm import Session
 
-from models import SessionLocal, engine, LawRepository
+from .models import SessionLocal, engine, LawRepository
 
 
 # Константы
@@ -51,7 +51,7 @@ def absolute(href: str, base: str) -> str:
 def extract_structured_links(html: str, toc_url: str) -> List[Dict]:
     """
     Извлечение структурированных ссылок: главы и их статьи.
-    Возвращает список словарей: {"type": "chapter", "title": "...", "url": "...", "articles": [...]}
+    Возвращает список словарей: {"type": "chapter", "title": "...", "source_url": "...", "articles": [...]}
     """
     soup = BeautifulSoup(html, "lxml")
     allowed_prefix = "/document/cons_doc_LAW_58968/"
@@ -86,7 +86,7 @@ def extract_structured_links(html: str, toc_url: str) -> List[Dict]:
             current_chapter = {
                 "type": "chapter",
                 "title": title,
-                "url": url,
+                "source_url": url,
                 "articles": []
             }
             structure.append(current_chapter)
@@ -95,7 +95,7 @@ def extract_structured_links(html: str, toc_url: str) -> List[Dict]:
         elif title.startswith("Статья") and current_chapter:
             current_chapter["articles"].append({
                 "title": title,
-                "url": url
+                "source_url": url
             })
     
     return structure
@@ -250,7 +250,7 @@ def parse_article_page(html: str, url: str) -> Dict[str, str]:
     # HTML для отображения
     body_html = extract_clean_html(content_root)
     
-    return {"title": title, "content": body_text, "content_html": body_html, "url": url}
+    return {"title": title, "content": body_text, "content_html": body_html, "source_url": url}
 
 
 # -------------------- DATABASE OPERATIONS -------------------- #
@@ -284,8 +284,8 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
             print(f"[Глава] Парсинг: {chapter_data['title']}")
             
             try:
-                html = fetch(chapter_data["url"])
-                parsed = parse_article_page(html, chapter_data["url"])
+                html = fetch(chapter_data["source_url"])
+                parsed = parse_article_page(html, chapter_data["source_url"])
                 
                 match = re.search(r"Глава\s+(\d+)", chapter_data["title"])
                 chapter_num = int(match.group(1)) if match else 0
@@ -294,6 +294,7 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
                     law_id=law.law_id,
                     chapter_number=chapter_num,
                     title=parsed["title"],
+                    source_url=parsed["source_url"]
                 )
                 total_count += 1
                 
@@ -306,8 +307,8 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
                 print(f"  [Часть] Парсинг: {article_data['title']}")
                 
                 try:
-                    html = fetch(article_data["url"])
-                    parsed = parse_article_page(html, article_data["url"])
+                    html = fetch(article_data["source_url"])
+                    parsed = parse_article_page(html, article_data["source_url"])
                     
                     match = re.search(r"Статья\s+(\d+(?:\.\d+)?)", article_data["title"])
                     part_num = match.group(1) if match else "0"
@@ -316,6 +317,7 @@ def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
                         chapter_id=chapter.chapter_id,
                         part_number=part_num,
                         title=parsed["title"],
+                        source_url=parsed["source_url"]
                     )
                     total_count += 1
                     
@@ -432,6 +434,7 @@ def parse_and_save_law(law_url: str = LAW_BASE_URL) -> None:
     save_to_database(structure, metadata["law_name"])
     
     print("🎉 Парсинг закона завершён успешно!")
+    exit(0)
 
 
 parse_and_save_law()

@@ -1,2 +1,7 @@
-# Скопируйте этот файл в .env и добавьте ваш токен бота
-BOT_TOKEN=your_bot_token_here
+BOT_TOKEN=bot_token
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=llmawyer
+DB_USER=postgres
+DB_PASSWORD=password
