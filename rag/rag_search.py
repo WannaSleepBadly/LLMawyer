@@ -15,10 +15,13 @@ class RAGSearchService:
         self.milvus_manager = MilvusManager(milvus_host, milvus_port)
         self.embedding_service = EmbeddingService()
         self.db_session = None
+        self._initialized = False
         
     def initialize(self) -> bool:
         """Initialize service (connect to Milvus and load model)"""
         try:
+            if self._initialized:
+                return True
             if not self.milvus_manager.connect():
                 return False
             
@@ -30,6 +33,7 @@ class RAGSearchService:
                 return False
             
             logger.info("RAG service initialized")
+            self._initialized = True
             return True
             
         except Exception as e:
@@ -203,5 +207,18 @@ class RAGSearchService:
             if self.db_session:
                 self.db_session.close()
             logger.info("Resources cleaned")
+            self._initialized = False
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
+            
+from typing import Optional as _Optional
+rag_service_singleton: _Optional[RAGSearchService] = None
+
+
+def get_rag_service() -> RAGSearchService:
+    global rag_service_singleton
+    if rag_service_singleton is None:
+        rag_service_singleton = RAGSearchService()
+    if not rag_service_singleton._initialized:
+        rag_service_singleton.initialize()
+    return rag_service_singleton

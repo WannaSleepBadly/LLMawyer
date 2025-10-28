@@ -1,10 +1,10 @@
 import logging
 import random
 from typing import Optional
-from rag.rag_search import RAGSearchService
+from rag.rag_search import get_rag_service
 
 logger = logging.getLogger(__name__)
-
+rag_service = get_rag_service()
 class TextProcessor:
     """Класс для обработки транскрибированного текста"""
     
@@ -22,12 +22,8 @@ class TextProcessor:
         try:
             logger.info(f"✨ Обрабатываем текст: {text[:50]}")
 
-            # TODO: Сделать нормальную загрузку rag сервиса вне функции
-            rag_service = RAGSearchService()
-
-            logger.info("🔄 Инициализируем RAG сервис...")
-            if not rag_service.initialize():
-                logger.error("❌ Не удалось инициализировать RAG сервис")
+            # Используем ленивую инициализацию RAG один раз на процесс
+            #rag_service = get_rag_service()
 
             results = rag_service.search_similar_paragraphs(text, top_k=5)
             response = self.format_response(results)

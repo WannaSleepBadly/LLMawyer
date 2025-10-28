@@ -34,7 +34,10 @@ def main() -> None:
         return
     
     # Создаем приложение
-    application = Application.builder().token(token).build()
+
+    proxy_url = 'https://190.14.5.163:5678'
+    application = Application.builder().token(token).get_updates_proxy(proxy_url).build()
+    #application = Application.builder().token(token).read_timeout(100).write_timeout(100).build()
     
     # Добавляем обработчики
     #Обработчики команд

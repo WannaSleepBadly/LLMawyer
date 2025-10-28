@@ -1,14 +1,14 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from ML.cuda_manager import cuda_manager
-from ML.whisper_transcriber import transcriber
+from ML.whisper_transcriber import get_transcriber
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /status - показывает информацию о системе"""
     
     # Получаем информацию о CUDA
     cuda_info = cuda_manager.get_device_info()
-    
+    transcriber = get_transcriber()
     # Получаем информацию о транскрипторе
     transcriber_info = transcriber.get_device_info()
     

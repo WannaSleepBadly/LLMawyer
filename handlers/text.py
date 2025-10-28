@@ -17,10 +17,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     processing_msg = await update.message.reply_text("⏳ Идёт обработка...")
     
     # Имитируем обработку (небольшая задержка)
-    await asyncio.sleep(1.5)
+    await asyncio.sleep(1.0)
     
-    # Получаем ответ из ML модуля
-    response = text_processor.generate_response(text)
+    # Получаем ответ из ML модуля в отдельном потоке (CPU-bound / блокирующие вызовы)
+    response = await asyncio.to_thread(text_processor.generate_response, text)
     
     # Удаляем сообщение об обработке и отправляем ответ
     await processing_msg.delete()

@@ -24,7 +24,7 @@ class WhisperTranscriber:
         self.device = cuda_manager.get_device()
         self.device_name = cuda_manager.get_device_name()
         self.is_cuda_enabled = cuda_manager.is_cuda_enabled()
-        self._load_model()
+        # Lazy load: do not load model in __init__
     
     def _load_model(self):
         """Загружает модель Whisper на доступное устройство"""
@@ -77,9 +77,11 @@ class WhisperTranscriber:
             if not os.path.exists(voice_file_path):
                 raise FileNotFoundError(f"Файл не найден: {voice_file_path}")
             
-            # Транскрибируем аудио на указанном устройстве
-            #print(voice_file_path, os.path.exists(voice_file_path))
-            result = self.model.transcribe(voice_file_path, language="ru")
+            # Lazy load модели при первом обращении
+            if self.model is None:
+                self._load_model()
+            # Выполняем транскрипцию в отдельном потоке, чтобы не блокировать event loop
+            result = await asyncio.to_thread(self.model.transcribe, voice_file_path, language="ru")
             transcribed_text = result["text"].strip()
             
             logger.info(f"✅ Транскрипция завершена. Длина текста: {len(transcribed_text)} символов")
@@ -138,5 +140,11 @@ class WhisperTranscriber:
             "model_size": self.model_size
         }
 
-# Глобальный экземпляр транскриптора
-transcriber = WhisperTranscriber(model_size="base")
+_transcriber_singleton = None
+
+
+def get_transcriber() -> WhisperTranscriber:
+    global _transcriber_singleton
+    if _transcriber_singleton is None:
+        _transcriber_singleton = WhisperTranscriber(model_size="base")
+    return _transcriber_singleton
