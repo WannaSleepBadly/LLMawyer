@@ -1,12 +1,11 @@
 import whisper
 import os
-import tempfile
 import asyncio
 import logging
-from telegram import Update
 from .cuda_manager import cuda_manager
 
 logger = logging.getLogger(__name__)
+
 
 class WhisperTranscriber:
     """Класс для транскрипции голосовых сообщений с помощью Whisper"""

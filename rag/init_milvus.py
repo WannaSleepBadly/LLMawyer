@@ -1,16 +1,15 @@
-"""
-Скрипт для инициализации и заполнения Milvus базы данных эмбеддингами пунктов закона.
-"""
-
 import os
 import sys
 import logging
 from dotenv import load_dotenv
+from .rag_search import RAGSearchService
+
+"""
+Скрипт для инициализации и заполнения Milvus базы данных эмбеддингами пунктов закона.
+"""
 
 # Добавляем корневую директорию в путь
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from .rag_search import RAGSearchService
 
 # Настройка логирования
 logging.basicConfig(

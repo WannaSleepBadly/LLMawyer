@@ -42,7 +42,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         # Удаляем сообщение об обработке и отправляем ответ
         await processing_msg.delete()
-        await update.message.reply_text(response, parse_mode='Markdown')
+        await update.message.reply_text(response, parse_mode='HTML')
         
         logger.info(f"Успешно обработано голосовое сообщение. Транскрипция: {transcribed_text[:50]}...")
         
