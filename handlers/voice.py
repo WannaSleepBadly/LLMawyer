@@ -2,12 +2,12 @@ import logging
 import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
-from ML.whisper_transcriber import transcriber
+from ML.whisper_transcriber import get_transcriber
 from ML.text_processor import text_processor
 from ML.cuda_manager import cuda_manager
 
 logger = logging.getLogger(__name__)
-
+transcriber = get_transcriber()
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик голосовых сообщений с транскрипцией Whisper"""
     voice = update.message.voice
@@ -24,6 +24,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await asyncio.sleep(1.0)
         
         # Получаем информацию об устройстве
+        #transcriber = get_transcriber()
         device_info = transcriber.get_device_info()
         device_emoji = "🚀" if device_info["is_cuda_enabled"] else "💻"
         
@@ -41,7 +42,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         # Удаляем сообщение об обработке и отправляем ответ
         await processing_msg.delete()
-        await update.message.reply_text(response, parse_mode='Markdown')
+        await update.message.reply_text(response, parse_mode='HTML')
         
         logger.info(f"Успешно обработано голосовое сообщение. Транскрипция: {transcribed_text[:50]}...")
         

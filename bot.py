@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from commands import start_command, menu_command, status_command
 from handlers import handle_voice, handle_text, handle_other, button_callback
 
+
 # Загружаем переменные окружения
 load_dotenv()
 
@@ -17,6 +18,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
 
 def main() -> None:
     """Основная функция для запуска бота"""
@@ -28,10 +30,10 @@ def main() -> None:
         return
     
     # Создаем приложение
-    application = Application.builder().token(token).build()
+    application = Application.builder().token(token).read_timeout(100).write_timeout(100).build()
     
     # Добавляем обработчики
-    #Обработчики команд
+    # Обработчики команд
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("menu", menu_command))
     application.add_handler(CommandHandler("status", status_command))
@@ -46,6 +48,7 @@ def main() -> None:
     # Запускаем бота
     logger.info("Запускаю бота...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
+
 
 if __name__ == '__main__':
     main()
