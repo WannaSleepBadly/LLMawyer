@@ -1,441 +1,336 @@
-"""
-Парсер закона «О рекламе» с КонсультантПлюс.
-"""
-import re
-import time
-import urllib.parse
-from typing import List, Tuple, Dict
-from datetime import datetime
-
-import requests
+import aiohttp
 from bs4 import BeautifulSoup, Tag
-from sqlalchemy.orm import Session
+from fake_useragent import UserAgent
+from urllib.parse import urljoin, urlparse, urlunparse
 
-from .models import SessionLocal, engine, LawRepository
-
-
-# Константы
-LAW_BASE_URL = "https://www.consultant.ru/document/cons_doc_LAW_58968/"
-LAW_NAME = "Федеральный закон \"О рекламе\" от 13.03.2006 N 38-ФЗ (последняя редакция)"
-LAW_CODE = "38-FZ"
-
-SESSION = requests.Session()
-SESSION.headers.update({
-    "User-Agent": "Mozilla/5.0 (compatible; law-scraper/1.0; +https://example.invalid)",
-    "Accept-Language": "ru-RU,ru;q=0.9"
-})
+import asyncio
+import re
+import json
+from typing import List, Dict, Optional, Tuple
 
 
-# -------------------- NETWORK -------------------- #
-def fetch(url: str, *, retries: int = 3, sleep: float = 1.0) -> str:
-    """Загрузка страницы с повторными попытками"""
-    last_exc = None
-    for i in range(retries):
-        try:
-            resp = SESSION.get(url, timeout=20)
-            resp.raise_for_status()
-            return resp.text
-        except Exception as e:
-            last_exc = e
-            time.sleep(sleep * (i + 1))
-    raise last_exc
-
-
-# -------------------- HELPERS -------------------- #
-def absolute(href: str, base: str) -> str:
-    """Преобразование относительной ссылки в абсолютную"""
-    return urllib.parse.urljoin(base, href)
-
-
-# -------------------- TOC PARSING -------------------- #
-def extract_structured_links(html: str, toc_url: str) -> List[Dict]:
+class LegalContentScraper:
     """
-    Извлечение структурированных ссылок: главы и их статьи.
-    Возвращает список словарей: {"type": "chapter", "title": "...", "source_url": "...", "articles": [...]}
+    Парсер КонсультантПлюс для получения текстов законов
     """
-    soup = BeautifulSoup(html, "lxml")
-    allowed_prefix = "/document/cons_doc_LAW_58968/"
-    structure = []
-    
-    # Ищем все ссылки подряд, формируем структуру
-    all_links = soup.find_all("a", href=True)
-    current_chapter = None
-    seen_urls = set()  # Защита от дубликатов
-    
-    for link in all_links:
-        href = link["href"].strip()
-        if not href.startswith(allowed_prefix):
-            continue
-        
-        title = " ".join(link.get_text(" ", strip=True).split())
-        if not title:
-            continue
-            
-        url = absolute(href, toc_url)
-        if "#" in url:
-            url = url.split("#", 1)[0]
-        
-        # Пропускаем корневой URL и дубликаты
-        if url.rstrip("/") == toc_url.rstrip("/") or url in seen_urls:
-            continue
-        
-        seen_urls.add(url)
-        
-        # Это глава?
-        if title.startswith("Глава"):
-            current_chapter = {
-                "type": "chapter",
-                "title": title,
-                "source_url": url,
-                "articles": []
-            }
-            structure.append(current_chapter)
-        
-        # Это статья?
-        elif title.startswith("Статья") and current_chapter:
-            current_chapter["articles"].append({
-                "title": title,
-                "source_url": url
-            })
-    
-    return structure
 
+    def __init__(self, timeout_sec: int = 20, max_retries: int = 3):
+        self.timeout = timeout_sec
+        self.max_retries = max_retries
+        self._session: Optional[aiohttp.ClientSession] = None
+        self.seen_urls = set()
 
-# -------------------- CONTENT PARSING -------------------- #
-def clean_node_text(node: Tag) -> str:
-    """Извлечение и очистка текста из HTML с сохранением структуры"""
-    # Удаление мусора
-    for sel in [
-        ".info-link", ".document__insert", ".document__edit",
-        ".dnk-button-dummy", ".document-page__balloon",
-        ".full-text", ".document-page__banner-middle",
-    ]:
-        for bad in node.select(sel):
-            bad.decompose()
-    
-    for bad in node.find_all(["script", "style", "noscript"]):
-        bad.decompose()
+    async def _create_session(self) -> aiohttp.ClientSession:
+        """Создаёт HTTP‑сеанс с рандомным User‑Agent"""
 
-    # Собираем текст с сохранением структуры
-    text = node.get_text("\n", strip=True)
-    
-    # Разбиваем на строки и форматируем
-    lines = []
-    
-    i = 0
-    text_lines = [l.strip() for l in text.split("\n") if l.strip()]
-    
-    while i < len(text_lines):
-        line = text_lines[i]
-        
-        # Основные пункты (1., 2., 3., 3.1. и т.д.)
-        if re.match(r'^\d+(\.\d+)?\.', line):
-            # Склеиваем с последующими строками до следующего пункта
-            full_line = line
-            i += 1
-            while i < len(text_lines) and not re.match(r'^(\d+(\.\d+)?\.|[а-я]\)|\d+\))', text_lines[i]):
-                full_line += " " + text_lines[i]
-                i += 1
-            lines.append(f"\n\n{full_line}")
-            continue
-        
-        # Подпункты с номерами (1), 2), 3)) - для определений
-        elif re.match(r'^\d+\)$', line):  # Только номер без текста
-            # Склеиваем следующую строку (определение)
-            i += 1
-            if i < len(text_lines):
-                definition = text_lines[i]
-                # Продолжаем склеивать до следующего номера
-                i += 1
-                while i < len(text_lines) and not re.match(r'^(\d+\)|[а-я]\)|\d+(\.\d+)?\.)', text_lines[i]):
-                    definition += " " + text_lines[i]
-                    i += 1
-                lines.append(f"\n{line} {definition}")
-            else:
-                lines.append(f"\n{line}")
-            continue
-        
-        # Подпункты с буквами (а), б), в))
-        elif re.match(r'^[а-я]\)$', line, re.IGNORECASE):
-            i += 1
-            if i < len(text_lines):
-                definition = text_lines[i]
-                i += 1
-                while i < len(text_lines) and not re.match(r'^([а-я]\)|\d+\)|\d+(\.\d+)?\.)', text_lines[i]):
-                    definition += " " + text_lines[i]
-                    i += 1
-                lines.append(f"\n  {line} {definition}")
-            else:
-                lines.append(f"\n  {line}")
-            continue
-        
-        # Обычная строка
-        if lines:
-            lines[-1] += " " + line
-        else:
-            lines.append(line)
-        i += 1
-    
-    text = "\n".join(lines)
-    
-    # Очистка
-    text = re.sub(r" +", " ", text)  # Убираем множественные пробелы
-    text = re.sub(r"\n{4,}", "\n\n", text)  # Максимум 2 переноса подряд
-    
-    return text.strip()
+        headers = {
+            "User-Agent": UserAgent().random,
+            "Accept-Language": "ru-RU,ru;q=0.9",
+        }
+        return aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout))
 
+    async def _request(self, url: str) -> str:
+        """Выполняет HTTP‑запрос с повторными попытками"""
 
-def extract_clean_html(node: Tag) -> str:
-    """Извлечение очищенного HTML с сохранением форматирования"""
-    # Удаление мусора и заголовков
-    for sel in [
-        ".info-link", ".document__insert", ".document__edit",
-        ".dnk-button-dummy", ".document-page__balloon",
-        ".full-text", ".document-page__banner-middle",
-        "h1", "h2", "h3"  # Убираем заголовки (они отдельно)
-    ]:
-        for bad in node.select(sel):
-            bad.decompose()
-    
-    for bad in node.find_all(["script", "style", "noscript"]):
-        bad.decompose()
-    
-    # Ищем ВСЕ параграфы с текстом "Статья N..." и удаляем (дубликаты заголовков)
-    for p in node.find_all("p"):
-        text = p.get_text(strip=True)
-        # Если параграф содержит только заголовок статьи - удаляем
-        if re.match(r'^Статья\s+\d+[\.\d]*\.\s+.+$', text) and len(text) < 200:
-            p.decompose()
-    
-    # Получаем HTML
-    html = str(node)
-    
-    # Очистка лишних классов и атрибутов
-    html = re.sub(r'class="[^"]*"', '', html)
-    html = re.sub(r'style="[^"]*"', '', html)
-    html = re.sub(r'id="[^"]*"', '', html)
-    html = re.sub(r'data-[a-z-]+="[^"]*"', '', html)
-    
-    # Убираем пустые теги
-    html = re.sub(r'<p>\s*</p>', '', html)
-    html = re.sub(r'<div>\s*</div>', '', html)
-    
-    return html.strip()
+        if not self._session:
+            self._session = await self._create_session()
 
-
-def parse_article_page(html: str, url: str) -> Dict[str, str]:
-    """Парсинг страницы статьи/главы"""
-    soup = BeautifulSoup(html, "lxml")
-    
-    # Извлечение заголовка
-    title = ""
-    title_el = soup.select_one(".document-page__content .doc-style h1")
-    if title_el:
-        title = " ".join(title_el.get_text(" ", strip=True).split())
-    if not title:
-        bc = soup.select_one(".document-page__breadcrumbs li:last-child")
-        if bc:
-            title = bc.get_text(" ", strip=True)
-    if not title:
-        title = soup.title.get_text(" ", strip=True) if soup.title else url
-
-    # Извлечение контента
-    content_root = soup.select_one(".document-page__content")
-    if not content_root:
-        content_root = soup.select_one("section.document-page__main") or soup
-
-    # Plain text для поиска
-    body_text = clean_node_text(content_root)
-    
-    # HTML для отображения
-    body_html = extract_clean_html(content_root)
-    
-    return {"title": title, "content": body_text, "content_html": body_html, "source_url": url}
-
-
-# -------------------- DATABASE OPERATIONS -------------------- #
-def save_to_database(structure: List[Dict], law_name: str = LAW_NAME) -> None:
-    """Сохранение спарсенных данных в БД со структурой: закон -> глава -> часть -> пункт"""
-    db = SessionLocal()
-    repo = LawRepository(db)
-    print('⚠️', 'Начали сохранять структуру')
-    try:
-        # 1. Проверяем, существует ли уже закон
-        existing_law = repo.get_law_by_code(LAW_CODE)
-        print('⚠️', existing_law)
-        if existing_law:
-            print(f"⚠️ Закон {LAW_CODE} уже существует в БД. Удаляем старые данные...")
-            db.delete(existing_law)
-            db.commit()
-        print('⚠️ Создаём закон....')
-        # 2. Создаем новый закон
-        law = repo.create_law(
-            law_name=law_name,
-            law_code=LAW_CODE,
-            source_url=LAW_BASE_URL
-        )
-        
-        print(f"✅ Создан закон ID={law.law_id}: {law_name}")
-        
-        # 3. Парсинг и сохранение по структуре: глава → части → пункты
-        total_count = 0
-        for chapter_data in structure:
-            # Парсим главу
-            print(f"[Глава] Парсинг: {chapter_data['title']}")
-            
+        for attempt in range(self.max_retries):
             try:
-                html = fetch(chapter_data["source_url"])
-                parsed = parse_article_page(html, chapter_data["source_url"])
-                
-                match = re.search(r"Глава\s+(\d+)", chapter_data["title"])
-                chapter_num = int(match.group(1)) if match else 0
-                
-                chapter = repo.create_chapter(
-                    law_id=law.law_id,
-                    chapter_number=chapter_num,
-                    title=parsed["title"],
-                    source_url=parsed["source_url"]
-                )
-                total_count += 1
-                
+                async with self._session.get(url) as response:
+                    response.raise_for_status()
+                    return await response.text()
             except Exception as e:
-                print(f"  ⚠️ Ошибка парсинга главы: {e}")
+                if attempt == self.max_retries - 1:
+                    raise e
+                await asyncio.sleep((attempt + 1) * 1.0)
+
+    def _extract_nav_structure(self, soup: BeautifulSoup, base_url: str) -> List[Dict]:
+        """Формирует дерево глав и статей из навигационных ссылок"""
+
+        chapters = []
+        current_chapter = None
+
+        for link in soup.find_all("a", href=True):
+            href = link["href"].strip()
+            if not href.startswith("/document/cons_doc_LAW_"):
                 continue
-            
-            # Парсим части/статьи этой главы
-            for article_data in chapter_data["articles"]:
-                print(f"  [Часть] Парсинг: {article_data['title']}")
-                
+
+            title = " ".join(link.get_text(" ", strip=True).split())
+            if not title:
+                continue
+
+            url = urljoin(base_url, href.split("#")[0])
+
+            # Нормализуем url
+            parsed = urlparse(url.lower())
+            # Удаляем якоря и несущественные параметры
+            clean_path = parsed.path.rstrip("/")
+            normalized_url = urlunparse((parsed.scheme, parsed.netloc, clean_path, "", "", ""))
+
+            if normalized_url in self.seen_urls:
+                continue
+            self.seen_urls.add(normalized_url)
+
+            # Если это глава
+            if title.startswith("Глава"):
+                # Добавляем в закон новую главу
+                current_chapter = {
+                    "title": title,
+                    "source_url": url,
+                    "articles": [],
+                }
+                chapters.append(current_chapter)
+            # Если это статья
+            elif title.startswith("Статья"):
+                # В законе нет глав
+                if not current_chapter:
+                    current_chapter = {
+                        # TODO: При выводе сообщения бота учесть, что Глава 0 - это заглушка
+                        "title": "Глава 0. Общие положения",
+                        "source_url": base_url,
+                        "articles": [],
+                    }
+                    chapters.append(current_chapter)
+                # Добавляем в статью новые главы
+                current_chapter["articles"].append({"title": title, "source_url": url})
+            # TODO: Обработка изменяющих законов и обзора изменений
+
+        return chapters
+
+    @staticmethod
+    def _sanitize_node(node: Tag, remove_tags: List[str], remove_classes: List[str]) -> None:
+        """Удаляет нежелательные элементы из DOM‑узла"""
+
+        for selector in remove_classes:
+            for el in node.select(selector):
+                el.decompose()
+        for tag in remove_tags:
+            for el in node.find_all(tag):
+                el.decompose()
+
+    def _clean_text_content(self, node: Tag) -> str:
+        """Очищает текст от лишних тэгов"""
+
+        self._sanitize_node(
+            node,
+            remove_tags=["script", "style", "noscript"],
+            remove_classes=[
+                ".info-link",
+                ".document__insert",
+                ".document__edit",
+                ".dnk-button-dummy",
+                ".document-page__balloon",
+                ".full-text",
+                ".document-page__banner-middle",
+            ],
+        )
+        lines = [line.strip() for line in node.get_text("\n").split("\n") if line.strip()]
+        return "\n".join(lines).strip()
+
+    @staticmethod
+    def _split_into_paragraphs(text: str) -> List[Dict[str, str]]:
+        """Разделение текста статьи на пункты и подпункты"""
+
+        paragraphs = []
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        current_paragraph = None  # номер текущего основного пункта (например, "4")
+        current_content = []  # накапливаемый текст основного пункта (до появления подпунктов)
+        subitems = []  # список подпунктов: [{"number": "4.1", "content": "..."}, ...]
+
+        # Регулярное выражение для основного пункта:
+        # - начинается с начала строки
+        # - содержит цифры, точки, дефисы (например, 3.13-1, 4.1, 5)
+        # - после номера идёт точка и пробел/текст
+        main_paragraph_pattern = r'^(?!\s*[#.).]\s*)(\d+(?:[.\-]\d+)*)\.\s+(.*)'
+        #main_paragraph_pattern = r'^\s*(\d+(?:[.\-]\d+)*)\.\s+(.*)'
+
+        # Регулярное выражение для подпункта:
+        # - начинается с начала строки
+        # - содержит номер/букву + скобку (1), а), i))
+        subitem_pattern = r'^\s*([0-9]+)\)\s+(.*?)\s*$'
+        #subitem_pattern = r'^\s*([а-яА-Я0-9]+)\)\s+(.*)'
+
+        for line in lines:
+            main_match = re.match(main_paragraph_pattern, line)
+            subitem_match = re.match(subitem_pattern, line)
+            if main_match:
+                # Новый основной пункт — сохраняем всё предыдущее
+                if current_paragraph is not None:
+                    if subitems:
+                        paragraphs.extend(subitems)
+                    else:
+                        current_content = " ".join(current_content).strip()
+                        paragraphs.append({
+                            "number": current_paragraph,
+                            "content": current_content
+                        })
+
+                # Начинаем новый основной пункт
+                current_paragraph = main_match.group(1)
+                current_content = [main_match.group(2)] if main_match.group(2) else []
+                subitems = []  # сбрасываем подпункты
+
+            elif subitem_match:
+                # Обрабатываем текущий подпункт
+                subitem_num = subitem_match.group(1)
+                subitem_text = subitem_match.group(2)
+
+                # Определяем порядковый номер подпункта (1, 2, 3... или а, б, в...)
                 try:
-                    html = fetch(article_data["source_url"])
-                    parsed = parse_article_page(html, article_data["source_url"])
-                    
-                    match = re.search(r"Статья\s+(\d+(?:\.\d+)?)", article_data["title"])
-                    part_num = match.group(1) if match else "0"
-                    
-                    part = repo.create_part(
-                        chapter_id=chapter.chapter_id,
-                        part_number=part_num,
-                        title=parsed["title"],
-                        source_url=parsed["source_url"]
-                    )
-                    total_count += 1
-                    
-                    # Парсим пункты части
-                    paragraphs = parse_paragraphs_from_content(parsed["content"])
-                    for paragraph_data in paragraphs:
-                        paragraph = repo.create_paragraph(
-                            part_id=part.part_id,
-                            paragraph_number=paragraph_data["number"],
-                            content=paragraph_data["content"]
-                        )
-                        total_count += 1
-                    
-                    # Коммитим каждые 10 записей
-                    if total_count % 10 == 0:
-                        repo.bulk_commit()
-                    
-                    time.sleep(0.7)  # Задержка между запросами
-                    
-                except Exception as e:
-                    print(f"    ⚠️ Ошибка парсинга части: {e}")
-                    continue
-        
-        repo.bulk_commit()
-        print(f"✅ Сохранено {total_count} записей в БД")
-        
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Ошибка сохранения в БД: {e}")
-        raise
-    finally:
-        db.close()
+                    subitem_idx = int(subitem_num)  # если число — используем как индекс
+                except ValueError:
+                    subitem_idx = ord(subitem_num.lower()) - ord('а') + 1  # для букв: а→1, б→2...
 
+                # Делаем номер подпункта составным
+                subitem_full_number = f"{current_paragraph}. Подпункт {subitem_idx}"
 
-def parse_paragraphs_from_content(content: str) -> List[Dict]:
-    """Парсинг пунктов из содержимого статьи"""
-    paragraphs = []
-    
-    # Разбиваем содержимое на строки
-    lines = [line.strip() for line in content.split('\n') if line.strip()]
-    
-    current_paragraph = None
-    current_content = []
-    
-    for line in lines:
-        # Проверяем, является ли строка началом нового пункта
-        paragraph_match = re.match(r'^(\d+(?:\.\d+)*)\.\s*(.*)', line)
-        
-        if paragraph_match:
-            # Сохраняем предыдущий пункт
-            if current_paragraph:
+                # Для каждого подпункта записываем текст главного пункта
+                subitem_text = " ".join(current_content).strip() + subitem_text
+                subitems.append({
+                    "number": subitem_full_number,
+                    "content": subitem_text
+                })
+
+            else:
+                # Продолжение текста (не начало нового пункта/подпункта)
+                if current_paragraph is not None:
+                    if subitems:
+                        # Добавляем к последнему подпункту
+                        if subitems[-1]["content"]:
+                            subitems[-1]["content"] += " " + line
+                        else:
+                            subitems[-1]["content"] = line
+                    else:
+                        # Добавляем к основному пункту
+                        current_content.append(line)
+
+        # Сохраняем последний пункт/подпункты
+        if current_paragraph is not None:
+            if subitems:
+                paragraphs.extend(subitems)
+            else:
+                current_content = " ".join(current_content).strip()
                 paragraphs.append({
                     "number": current_paragraph,
-                    "content": " ".join(current_content).strip()
+                    "content": current_content
                 })
-            
-            # Начинаем новый пункт
-            current_paragraph = paragraph_match.group(1)
-            current_content = [paragraph_match.group(2)] if paragraph_match.group(2) else []
-        else:
-            # Продолжение текущего пункта
-            if current_paragraph:
-                current_content.append(line)
-    
-    # Сохраняем последний пункт
-    if current_paragraph:
-        paragraphs.append({
-            "number": current_paragraph,
-            "content": " ".join(current_content).strip()
-        })
-    
-    return paragraphs
+
+        # В тексте статьи нет подпунктов
+        if not paragraphs:
+            lines = [line for line in lines if 'Статья' not in line]
+            lines = " ".join(lines)
+            paragraphs = [
+                {"number": "",
+                 "content": lines}
+            ]
+        return paragraphs
+
+    async def scrape_article(self, article_url: str) -> Dict[str, str]:
+        """Парсинг отдельной статьи"""
+
+        html = await self._request(article_url)
+        soup = BeautifulSoup(html, "lxml")
+
+        content_root = soup.select_one(".document-page__content") or soup
+
+        text = self._clean_text_content(content_root)
+
+        return {
+            "text": text,
+            "source_url": article_url,
+        }
+
+    async def scrape_law(self, law_url: str) -> list[dict[str, str | list[dict]]]:
+        """Парсинг одного закона."""
+
+        print(f"[INFO] Обработка закона: {law_url}")
+        html = await self._request(law_url)
+        soup = BeautifulSoup(html, "lxml")
+
+        # Определение названия закона
+        title_el = soup.select_one(".document-page__content .doc-style h1")
+        title = title_el.get_text(" ", strip=True) if title_el else (
+            soup.title.get_text(" ", strip=True) if soup.title else law_url)
+        title = title.replace(" \ КонсультантПлюс", "")
+
+        # Определение номера закона
+        pattern = r'N\s*(\d+-ФЗ)'
+        match = re.search(pattern, title, re.IGNORECASE)
+        code = match.group(1) if match else None
+
+        # TODO сохранение аннотации закона (текст перед главами и статьями)
+        law = {"title": title,
+               "source_url": law_url,
+               "code": code}
+
+        structure = self._extract_nav_structure(soup=soup, base_url=law_url)
+        for chapter in structure:
+            print(f"  → Глава: {chapter['title']}")
+            articles = []
+            for article in chapter["articles"]:
+                print(f"    ➜ Статья: {article['title']}")
+                if 'утратила силу' not in article['title'].lower():
+                    a_data = await self.scrape_article(article["source_url"])
+                    paragraphs = self._split_into_paragraphs(a_data["text"])
+                    article['paragraphs'] = paragraphs
+                    articles.append(article)
+
+            chapter["articles"] = articles
+
+        structure = [chapter for chapter in structure if not 'утратила силу' in chapter['title'].lower()]
+        law['chapters'] = structure
+
+        print(f"[SUCCESS] Закон {law_url} обработан.\n")
+        return [law]
+
+    async def scrape_multiple_laws(self, urls: List[str]) -> List[Dict]:
+        """Асинхронно обрабатывает несколько законов."""
+
+        print(f"[INFO] Запущен парсинг {len(urls)} законов.")
+        tasks = [self.scrape_law(url) for url in urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Фильтруем исключения
+        valid_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"[ERROR] Ошибка при парсинге {urls[i]}: {result}")
+            else:
+                valid_results.extend(result)
+
+        return valid_results
+
+    async def close(self):
+        """Закрывает HTTP‑сеанс."""
+        if self._session:
+            await self._session.close()
+            self._session = None
 
 
-def extract_law_metadata(html: str) -> Dict:
-    """Извлечение метаданных закона: название"""
-    soup = BeautifulSoup(html, "lxml")
-    
-    # Название закона
-    title_el = soup.select_one(".document-page__title h1")
-    law_name = LAW_NAME  # default
-    
-    if title_el:
-        title_text = title_el.get_text(strip=True)
-        # Сохраняем полное название включая "(последняя редакция)"
-        law_name = title_text
-    
-    return {
-        "law_name": law_name
-    }
+async def main():
+    """Точка входа: запускает парсер и обрабатывает заданные URL."""
+    # TODO Добавить ФЗ о СМИ, банкротстве, перрсональных данных
+    urls = [
+         "https://www.consultant.ru/document/cons_doc_LAW_58968/",  # О рекламе
+         "https://www.consultant.ru/document/cons_doc_LAW_305/",    # О защите прав потребителей
+         "https://www.consultant.ru/document/cons_doc_LAW_61763/",  # О защите конкуренции
+         "https://www.consultant.ru/document/cons_doc_LAW_61798/",  # Об информации, ИТ и защите информации
+    ]
 
+    scraper = LegalContentScraper(timeout_sec=25, max_retries=4)
+    try:
+        results = await scraper.scrape_multiple_laws(urls)
+        print(f"\n[DONE] Обработано законов: {len(results)}")
 
-# -------------------- MAIN FUNCTION -------------------- #
-def parse_and_save_law(law_url: str = LAW_BASE_URL) -> None:
-    """
-    Основная функция парсинга закона и сохранения в БД.
-    """
-    print(f"🔍 Начинаю парсинг закона: {law_url}")
-    
-    # 1. Загрузка оглавления
-    toc_html = fetch(law_url)
-    
-    # 2. Извлечение метаданных
-    metadata = extract_law_metadata(toc_html)
-    print(f"📋 Закон: {metadata['law_name']}")
-    
-    # 3. Извлечение структуры
-    structure = extract_structured_links(toc_html, law_url)
-    # Подсчет общего количества документов
-    total_docs = len(structure) + sum(len(ch["articles"]) for ch in structure)
-    print(f"📚 Найдено {len(structure)} глав, {total_docs} документов для парсинга")
-    
-    # 4. Сохранение в БД со структурой: закон -> глава -> часть -> пункт
-    save_to_database(structure, metadata["law_name"])
-    
-    print("🎉 Парсинг закона завершён успешно!")
-    exit(0)
+        with open("laws.json", "w", encoding="utf-8") as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
+
+    except Exception as e:
+        print(f"[FATAL] Ошибка: {e}")
+    finally:
+        await scraper.close()
 
 
 if __name__ == "__main__":
-    parse_and_save_law()
+    asyncio.run(main())
