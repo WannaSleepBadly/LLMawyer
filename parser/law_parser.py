@@ -255,7 +255,9 @@ class LegalContentScraper:
         title = title.replace(" \ КонсультантПлюс", "")
 
         # Определение номера закона
-        pattern = r'N\s*(\d+-ФЗ)'
+        # TODO Убрала постфикс ФЗ, проверить, как распознаётся
+        pattern = r'N\s*(\d+)'
+        #pattern = r'N\s*(\d+-ФЗ)'
         match = re.search(pattern, title, re.IGNORECASE)
         code = match.group(1) if match else None
 
