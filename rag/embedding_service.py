@@ -1,8 +1,12 @@
 import os
 from typing import List, Optional
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, models
 import logging
 
+
+"""
+Модуль получения текстовых эмбеддингов
+"""
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +23,25 @@ class EmbeddingService:
         """Загрузка модели"""
         try:
             logger.info(f"Загружаем модель для эмбеддингов: {self.model_name}")
-            self.model = SentenceTransformer(self.model_name)
+
+            # Загружаем обычную Hugging Face модель
+            word_embedding_model = models.Transformer(self.model_name)
+
+            # Добавляем mean pooling
+            pooling_model = models.Pooling(
+                word_embedding_model.get_word_embedding_dimension(),
+                pooling_mode_mean_tokens=True,
+                pooling_mode_cls_token=False,
+                pooling_mode_max_tokens=False
+            )
+
+            # Собираем SentenceTransformer
+            self.model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
+            # Если уже совместима, то self.model = SentenceTransformer(self.model_name)
             
             test_embedding = self.model.encode(["test"])
             self.embedding_dim = len(test_embedding[0])
-            
+
             logger.info(f"Модель загружена. Размер эмбеддингов: {self.embedding_dim}")
             return True
             
@@ -101,3 +119,7 @@ class EmbeddingService:
             "is_loaded": self.model is not None
         }
 
+
+if __name__ == "__main__":
+    emb = EmbeddingService()
+    emb.load_model()

@@ -5,7 +5,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from dotenv import load_dotenv
 
 # Импорты из модулей
-from commands import start_command, menu_command, status_command
+from commands import start_command, status_command
 from handlers import handle_voice, handle_text, handle_other, button_callback
 
 
@@ -35,7 +35,6 @@ def main() -> None:
     # Добавляем обработчики
     # Обработчики команд
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("menu", menu_command))
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CallbackQueryHandler(button_callback))
     # Вызов обработчика для голосовых сообщений

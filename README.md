@@ -2,61 +2,60 @@
 
 Telegram-бот юрист, который принимает голосовые или текстовые сообщения и с помощью LLM и RAG даёт ответы о законодательстве РФ.
 
-На данный момент бот отвечает на вопросы только о ФЗ 'О рекламе'
 
-## 🎤 Возможности
+## Установка и настройка
 
-- Транскрибирует речь с помощью Whisper
-- Автоматическое ускорение с CUDA
-- Анализирует содержание и генерирует умные ответы
-- Обрабатывает команды `/start`, `/menu` и `/status`
-- Интерактивное меню с кнопками
-- Логирует информацию
+### 1. Установка PostgreSQL и Milvus
 
-## 🚀 Установка и запуск
+```bash
+# Скачайте и установите PostgreSQL с официального сайта
+# https://www.postgresql.org/download/windows/
+curl -sfL https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh -o standalone_embed.sh
+bash standalone_embed.sh start
+```
 
-### 1. Установка зависимостей
+### 2. Создание postgres базы данных
+
+```bash
+# Подключение к PostgreSQL
+psql -U postgres
+
+# Создание базы данных
+CREATE DATABASE llmawyer;
+```
+
+### 3. Установка зависимостей
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**Примечание:** 
-- Если у вас есть NVIDIA GPU с CUDA, транскрипция будет автоматически ускорена
-- Для CUDA требуется PyTorch с поддержкой CUDA
+### 4. Настройка переменных окружения
 
-### 2. Запуск
+Внесите данные из env.txt в файл `.env` в корне проекта.
+
+### 5. Парсинг закона
+```bash
+python parser.law_parser
+```
+В результате будет получен `laws.json` с текстами законов. 
+
+### 6. Занесение данных в postgres
+```bash
+python parser.repository
+```
+
+### 7. Заполнение milvus
+Запустите docker контейнер с milvus
+```bash
+python -m rag.init_milvus
+```
+
+### 8. Запуск
 
 ```bash
-python LLMawyer/bot.py
+python bot.py
 ```
-## 🔧 Структура проекта
-
-```
-LLMawyer/
-├── bot.py                 # Основной файл бота
-├── commands/              # Команды бота
-│   ├── __init__.py
-│   ├── start.py          # Команда /start
-│   ├── help.py           # Команда /help
-│   └── menu.py           # Команда /menu
-├── handlers/             # Обработчики сообщений
-│   ├── __init__.py
-│   ├── voice.py          # Обработка голосовых сообщений
-│   ├── text.py           # Обработка текстовых сообщений
-│   ├── other.py          # Обработка других типов сообщений
-│   └── buttons.py        # Обработка нажатий на кнопки
-├── ML/                   # Модуль машинного обучения
-│   ├── __init__.py
-│   ├── responses.py      # Заглушки для ответов
-│   ├── whisper_transcriber.py  # Транскрипция с Whisper
-│   ├── text_processor.py # Обработка транскрибированного текста
-│   └── cuda_manager.py   # Управление CUDA
-├── requirements.txt      # Зависимости Python
-├── env_example.txt      # Пример файла конфигурации
-└── README.md            # Документация
-```
-
 
 ## Структура базы данных
 
@@ -87,109 +86,8 @@ LLMawyer/
 - `paragraph_number` - Номер пункта
 - `content` - Исходный текст пункта
 
+## Примеры ответов
 
-## Установка и настройка
-
-### 1. Установка PostgreSQL
-
-```bash
-# Скачайте и установите PostgreSQL с официального сайта
-# https://www.postgresql.org/download/windows/
-```
-
-### 2. Создание базы данных
-
-```bash
-# Подключение к PostgreSQL
-psql -U postgres
-
-# Создание базы данных
-CREATE DATABASE llmawyer;
-```
-
-### 3. Установка зависимостей
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Настройка переменных окружения
-
-Внесите следующие данные в файл `.env` в корне проекта:
-
-```env
-# Конфигурация базы данных PostgreSQL
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=llmawyer
-DB_USER=postgres
-DB_PASSWORD=your_password
-```
-
-
-## Использование
-
-### Запуск парсинга
-
-```bash
-python -m parser.law_parser
-```
-
-### Настройка базы данных и создание тестовых данных
-
-```bash
-python -m parser.config
-```
-
-### Демонстрация возможностей
-
-```bash
-python -m parser.example
-```
-
-## Программный интерфейс
-
-### Подключение к базе данных
-
-```python
-from parser.database import SessionLocal, LawRepository
-
-# Получение сессии
-db = SessionLocal()
-repo = LawRepository(db)
-
-# Работа с данными
-law = repo.get_law_by_code("38-FZ")
-```
-
-### Создание закона
-
-```python
-law = repo.create_law(
-    law_name="Федеральный закон \"О рекламе\"",
-    law_code="38-FZ",
-    source_url="https://www.consultant.ru/document/cons_doc_LAW_58968/"
-)
-```
-
-### Поиск по содержимому
-
-```python
-# Поиск пунктов, содержащих определенный текст
-paragraphs = db.query(LawParagraph).filter(
-    LawParagraph.content.contains("реклама")
-).all()
-```
-
-## 📋 Команды бота
-
-- `/start` - начать работу с ботом (с интерактивным меню)
-- `/menu` - показать меню команд
-- `/status` - показать статус системы и CUDA
-
-## 🎯 Примеры ответов
-
-### Голосовые сообщения:
 ```
 🎤 Транскрипция: Что нужно знать при размещении рекламы в интернете?
 
@@ -203,12 +101,14 @@ paragraphs = db.query(LawParagraph).filter(
 🤖 Ответ: Пункт 1 части 5 статьи 5 главы 1 ФЗ О рекламе гласит, что в рекламе не должно быть иностранных слов.
 ```
 
-## 🧠 Технологии
+## Технологии
 
 - **Python Telegram Bot** - основной фреймворк для бота
+- **Postgres** - хранение текстов и мета-данных
+- **Milvus** - хранение эмбеддингов 
 - **OpenAI Whisper** - транскрипция голосовых сообщений
-- **PyTorch** - основа для Whisper с поддержкой CUDA
-- **CUDA** - ускорение транскрипции на GPU (автоматически)
+- **SentenceTransformers** - получение текстовых эмбеддингов
+- **CUDA** - ускорение моделей на GPU
 - **FFmpeg** - обработка аудио файлов
 - **Python asyncio** - асинхронная обработка
 - **Logging** - подробное логирование всех операций

@@ -3,6 +3,11 @@ from rag.rag_search import get_rag_service
 import re
 from .llm_api import ollama_client
 
+"""
+Модуль формирования ответов на текстовые(транскрибированные) сообщения.
+Главная логика: поиск в milvus + генерация ответа с llm + форматирование ответа
+"""
+
 logger = logging.getLogger(__name__)
 rag_service = get_rag_service()
 
@@ -38,7 +43,8 @@ class TextProcessor:
             logger.error(f"❌ Ошибка генерации ответа: {e}")
             return "Ваш вопрос слишком сложный, я не могу на него ответить. Попробуйте перефразировать."
 
-    def format_response(self, llm_answer: str, retrieved_fragments: list[dict[str, any]]) -> str:
+    @staticmethod
+    def format_response(llm_answer: str, retrieved_fragments: list[dict[str, any]]) -> str:
         """
         Форматирует ответ LLM для пользователя.
         Добавляет внизу ссылки на использованные фрагменты законов.

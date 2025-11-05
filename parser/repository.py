@@ -1,9 +1,13 @@
-from typing import List, Optional, Type, Dict, Union
+from typing import List, Optional, Type
 import json
 import re
 
-from models import *
-from config import db_manager
+from .models import *
+from .config import db_manager
+
+"""
+CRUD операции с PostgreSQL таблицами законов
+"""
 
 
 class LawRepository:

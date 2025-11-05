@@ -1,7 +1,12 @@
 import logging
 import torch
 
+"""
+Модуль управления ресурсами GPU и CPU
+"""
+
 logger = logging.getLogger(__name__)
+
 
 class CUDAManager:
     """Менеджер для работы с CUDA"""
@@ -70,6 +75,7 @@ class CUDAManager:
                 "memory_gb": None,
                 "is_cuda": False
             }
+
 
 # Глобальный экземпляр менеджера CUDA
 cuda_manager = CUDAManager()

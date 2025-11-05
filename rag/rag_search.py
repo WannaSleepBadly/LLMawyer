@@ -1,9 +1,15 @@
 from typing import List, Dict, Any, Optional
-from parser.models import LawParagraph, LawPart, LawChapter, Law, SessionLocal
+from parser.models import LawParagraph, LawPart, LawChapter, Law
+from parser.config import db_manager
 from .milvus_manager import MilvusManager
 from .embedding_service import EmbeddingService
 import logging
 from typing import Optional as _Optional
+
+"""
+Модуль поиска наиболее похожих пунктов закона. Связь между milvus и postgre
+На текстовый запрос возвращаются наиболее похожие тексты законодательства
+"""
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +20,7 @@ class RAGSearchService:
     def __init__(self, milvus_host: str = "localhost", milvus_port: int = 19530):
         self.milvus_manager = MilvusManager(milvus_host, milvus_port)
         self.embedding_service = EmbeddingService()
-        self.db_session = None
+        self.db_session = db_manager.get_session()
         self._initialized = False
 
     def initialize(self) -> bool:
@@ -43,13 +49,17 @@ class RAGSearchService:
     def populate_milvus_from_postgres(self, batch_size: int = 100, drop_existing: bool = True) -> bool:
         """Загружаем в Milvus пункты законов из PostgreSQL"""
         try:
-            if drop_existing and not self.milvus_manager.delete_collection() and not self.initialize():
-                logger.error("Не удалось удалить существующую коллекцию")
-                return False
+            if drop_existing:
+                if not self.milvus_manager.delete_collection():
+                    logger.error("Не удалось удалить существующую коллекцию")
+                    return False
 
-            db = SessionLocal()
+                # Переинициализируем после удаления
+                if not self.initialize():
+                    logger.error("Не удалось повторно инициализировать сервис")
+                    return False
 
-            paragraphs_query = db.query(LawParagraph).join(
+            paragraphs_query = self.db_session.query(LawParagraph).join(
                 LawPart, LawParagraph.part_id == LawPart.part_id
             ).join(
                 LawChapter, LawPart.chapter_id == LawChapter.chapter_id
@@ -91,7 +101,7 @@ class RAGSearchService:
                         return False
 
             logger.info(f"Всего обработано {total_processed} записей")
-            db.close()
+            self.db_session.close()
             return True
 
         except Exception as e:
@@ -154,9 +164,8 @@ class RAGSearchService:
     def get_paragraph_details(self, paragraph_id: int) -> Optional[Dict[str, Any]]:
         """Получение информаиии о пунктах из PostgreSQL"""
         try:
-            db = SessionLocal()
 
-            paragraph = db.query(LawParagraph).join(
+            paragraph = self.db_session.query(LawParagraph).join(
                 LawPart, LawParagraph.part_id == LawPart.part_id
             ).join(
                 LawChapter, LawPart.chapter_id == LawChapter.chapter_id
@@ -166,7 +175,7 @@ class RAGSearchService:
 
             if not paragraph:
                 logger.warning(f"Пункт с ID {paragraph_id} не найден")
-                db.close()
+                self.db_session.close()
                 return None
 
             details = {
@@ -193,7 +202,7 @@ class RAGSearchService:
                 }
             }
 
-            db.close()
+            self.db_session.close()
             return details
 
         except Exception as e:

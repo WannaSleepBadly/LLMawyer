@@ -4,12 +4,16 @@ import asyncio
 import logging
 from .cuda_manager import cuda_manager
 
+"""
+Модуль транскрипции аудио
+"""
+
 logger = logging.getLogger(__name__)
 
 
 class WhisperTranscriber:
     """Класс для транскрипции голосовых сообщений с помощью Whisper"""
-    
+
     def __init__(self, model_size="tiny"):
         """
         Инициализация транскриптора
@@ -23,26 +27,25 @@ class WhisperTranscriber:
         self.device = cuda_manager.get_device()
         self.device_name = cuda_manager.get_device_name()
         self.is_cuda_enabled = cuda_manager.is_cuda_enabled()
-        # Lazy load: do not load model in __init__
-    
+
     def _load_model(self):
         """Загружает модель Whisper на доступное устройство"""
         try:
             device_info = cuda_manager.get_device_info()
             logger.info(f"Загружаю модель Whisper: {self.model_size}")
             logger.info(f"🎮 Устройство: {device_info['name']} ({device_info['device']})")
-            
+
             if device_info['is_cuda']:
                 logger.info(f"🚀 Использую CUDA для ускорения транскрипции")
                 logger.info(f"💾 Память GPU: {device_info['memory_gb']} GB")
             else:
                 logger.info("⚠️ CUDA недоступна, используется CPU")
-            
+
             # Загружаем модель на указанное устройство
             self.model = whisper.load_model(self.model_size, device=self.device)
-            
+
             logger.info("✅ Модель Whisper успешно загружена")
-            
+
         except Exception as e:
             logger.error(f"❌ Ошибка загрузки модели Whisper: {e}")
             # Fallback на CPU если CUDA не работает
@@ -57,7 +60,7 @@ class WhisperTranscriber:
                     raise
             else:
                 raise
-    
+
     async def transcribe_voice_message(self, voice_file_path: str) -> str:
         """
         Транскрибирует голосовое сообщение в текст
@@ -71,27 +74,27 @@ class WhisperTranscriber:
         try:
             logger.info(f"Начинаю транскрипцию файла: {voice_file_path}")
             logger.info(f"🎮 Использую устройство: {self.device_name}")
-            
+
             # Проверяем существование файла
             if not os.path.exists(voice_file_path):
                 raise FileNotFoundError(f"Файл не найден: {voice_file_path}")
-            
+
             # Lazy load модели при первом обращении
             if self.model is None:
                 self._load_model()
             # Выполняем транскрипцию в отдельном потоке, чтобы не блокировать event loop
             result = await asyncio.to_thread(self.model.transcribe, voice_file_path, language="ru")
             transcribed_text = result["text"].strip()
-            
+
             logger.info(f"✅ Транскрипция завершена. Длина текста: {len(transcribed_text)} символов")
             logger.debug(f"Транскрибированный текст: {transcribed_text[:100]}...")
-            
+
             return transcribed_text
-            
+
         except Exception as e:
             logger.error(f"❌ Ошибка транскрипции: {e}")
             raise
-    
+
     async def download_and_transcribe(self, update, context):
         voice = update.message.voice
         file = await context.bot.get_file(voice.file_id)
@@ -120,7 +123,7 @@ class WhisperTranscriber:
         except Exception as e:
             logger.error(f"Ошибка при скачивании/транскрипции: {e}")
             raise
-        
+
         finally:
             # Удаляем файл в любом случае
             try:
@@ -138,6 +141,7 @@ class WhisperTranscriber:
             "is_cuda_enabled": self.is_cuda_enabled,
             "model_size": self.model_size
         }
+
 
 _transcriber_singleton = None
 

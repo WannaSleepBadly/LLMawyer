@@ -6,7 +6,12 @@ from urllib.parse import urljoin, urlparse, urlunparse
 import asyncio
 import re
 import json
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
+
+
+"""
+Парсинг текстов законов с КонсультантПлюс
+"""
 
 
 class LegalContentScraper:
@@ -143,13 +148,11 @@ class LegalContentScraper:
         # - содержит цифры, точки, дефисы (например, 3.13-1, 4.1, 5)
         # - после номера идёт точка и пробел/текст
         main_paragraph_pattern = r'^(?!\s*[#.).]\s*)(\d+(?:[.\-]\d+)*)\.\s+(.*)'
-        #main_paragraph_pattern = r'^\s*(\d+(?:[.\-]\d+)*)\.\s+(.*)'
 
         # Регулярное выражение для подпункта:
         # - начинается с начала строки
         # - содержит номер/букву + скобку (1), а), i))
         subitem_pattern = r'^\s*([0-9]+)\)\s+(.*?)\s*$'
-        #subitem_pattern = r'^\s*([а-яА-Я0-9]+)\)\s+(.*)'
 
         for line in lines:
             main_match = re.match(main_paragraph_pattern, line)
@@ -257,7 +260,6 @@ class LegalContentScraper:
         # Определение номера закона
         # TODO Убрала постфикс ФЗ, проверить, как распознаётся
         pattern = r'N\s*(\d+)'
-        #pattern = r'N\s*(\d+-ФЗ)'
         match = re.search(pattern, title, re.IGNORECASE)
         code = match.group(1) if match else None
 

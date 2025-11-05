@@ -2,11 +2,11 @@ import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from models import Base
+from .models import Base
 from sqlalchemy.exc import SQLAlchemyError
 
 """
-Конфигурация для подключения к PostgreSQL базе данных.
+Конфигурация для подключения к PostgreSQL.
 """
 
 load_dotenv()

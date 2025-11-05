@@ -6,4 +6,6 @@ DB_NAME=llmawyer
 DB_USER=postgres
 DB_PASSWORD=password
 
-EMBEDDING_MODEL=deepvk/USER2-base
+EMBEDDING_MODEL='TryDotAtwo/ruBERT-ruLaw'
+
+OLLAMA_MODEL='gpt-oss:120b-cloud'

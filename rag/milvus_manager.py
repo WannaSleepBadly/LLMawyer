@@ -5,12 +5,19 @@ from pymilvus import (
 )
 import logging
 
+
+"""
+Подключение и обращение к milvus
+"""
+
 logger = logging.getLogger(__name__)
 
 
 class MilvusManager:
     """Сервис для работы с Milvus"""
-    
+
+    # TODO добавить операцию удаления эмбеддингов определённых пунктов закона
+    # TODO комплексную логику поиска похожих пунктов: классификация ответов по темам, хранение эмбеддингов по темам
     def __init__(self, host: str = "localhost", port: int = 19530):
         self.host = host
         self.port = port
