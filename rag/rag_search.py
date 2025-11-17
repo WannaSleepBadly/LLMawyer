@@ -1,13 +1,13 @@
-from typing import List, Dict, Any, Optional
-from parser.models import LawParagraph, LawPart, LawChapter, Law
-from parser.config import db_manager
-from .milvus_manager import MilvusManager
-from .embedding_service import EmbeddingService
 import logging
-from typing import Optional as _Optional
+from typing import Any, Dict, List, Optional
+
+from LLMawyer.parser.config import DatabaseManager
+from LLMawyer.parser.models import Law, LawChapter, LawParagraph, LawPart
+from LLMawyer.rag.embedding_service import EmbeddingService
+from LLMawyer.rag.milvus_manager import MilvusManager
 
 """
-Модуль поиска наиболее похожих пунктов закона. Связь между milvus и postgre
+Модуль поиска наиболее похожих пунктов закона. Связь между milvus и postgres
 На текстовый запрос возвращаются наиболее похожие тексты законодательства
 """
 
@@ -17,16 +17,21 @@ logger = logging.getLogger(__name__)
 class RAGSearchService:
     """Сервис для поиска похожих пунктов закона"""
 
-    def __init__(self, milvus_host: str = "localhost", milvus_port: int = 19530):
-        self.milvus_manager = MilvusManager(milvus_host, milvus_port)
-        self.embedding_service = EmbeddingService()
+    def __init__(
+        self,
+        milvus_manager: MilvusManager,
+        embedding_service: EmbeddingService,
+        db_manager: DatabaseManager,
+    ):
+        self.milvus_manager = milvus_manager
+        self.embedding_service = embedding_service
         self.db_session = db_manager.get_session()
-        self._initialized = False
+        self.initialized = False
 
     def initialize(self) -> bool:
         """Подключение к milvus и загрузка модели эмбеддингов"""
         try:
-            if self._initialized:
+            if self.initialized:
                 return True
             if not self.milvus_manager.connect():
                 return False
@@ -39,14 +44,16 @@ class RAGSearchService:
                 return False
 
             logger.info("RAG сервис проинициализирован")
-            self._initialized = True
+            self.initialized = True
             return True
 
         except Exception as e:
             logger.error(f"Ошибка инициализации: {e}")
             return False
 
-    def populate_milvus_from_postgres(self, batch_size: int = 100, drop_existing: bool = True) -> bool:
+    def populate_milvus_from_postgres(
+        self, batch_size: int = 100, drop_existing: bool = True
+    ) -> bool:
         """Загружаем в Milvus пункты законов из PostgreSQL"""
         try:
             if drop_existing:
@@ -59,30 +66,29 @@ class RAGSearchService:
                     logger.error("Не удалось повторно инициализировать сервис")
                     return False
 
-            paragraphs_query = self.db_session.query(LawParagraph).join(
-                LawPart, LawParagraph.part_id == LawPart.part_id
-            ).join(
-                LawChapter, LawPart.chapter_id == LawChapter.chapter_id
-            ).join(
-                Law, LawChapter.law_id == Law.law_id
-            ).all()
+            paragraphs_query = (
+                self.db_session.query(LawParagraph)
+                .join(LawPart, LawParagraph.part_id == LawPart.part_id)
+                .join(LawChapter, LawPart.chapter_id == LawChapter.chapter_id)
+                .join(Law, LawChapter.law_id == Law.law_id)
+                .all()
+            )
 
             logger.info(f"🔎 Найдено {len(paragraphs_query)} пунктов для обработки")
 
             total_processed = 0
 
             for i in range(0, len(paragraphs_query), batch_size):
-                batch = paragraphs_query[i:i + batch_size]
+                batch = paragraphs_query[i : i + batch_size]
                 logger.info(
-                    f"📦 Обрабатываем батч {i // batch_size + 1}/{(len(paragraphs_query) + batch_size - 1) // batch_size}")
+                    f"📦 Обрабатываем батч {i // batch_size + 1}/{(len(paragraphs_query) + batch_size - 1) // batch_size}"
+                )
 
                 batch_data = []
                 texts = []
 
                 for paragraph in batch:
-                    batch_data.append({
-                        "paragraph_id": paragraph.paragraph_id
-                    })
+                    batch_data.append({"paragraph_id": paragraph.paragraph_id})
                     texts.append(paragraph.content)
 
                 embeddings = self.embedding_service.encode_batch(texts, batch_size)
@@ -111,11 +117,11 @@ class RAGSearchService:
             return False
 
     def search_similar_paragraphs(
-            self,
-            query_text: str,
-            top_k: int = 10,
-            score_threshold: float = 0.7,
-            law_code: Optional[str] = None
+        self,
+        query_text: str,
+        top_k: int = 10,
+        score_threshold: float = 0.7,
+        law_code: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Поиск похожих пунктов закона"""
         try:
@@ -138,21 +144,23 @@ class RAGSearchService:
                     if law_code and details["law"]["code"] != law_code:
                         continue
 
-                    similar_paragraphs.append({
-                        "paragraph_id": paragraph_id,
-                        "similarity_score": similarity_score,
-                        "content": details["content"],
-                        "law_code": details["law"]["code"],
-                        "law_name": details["law"]["name"],
-                        "chapter_number": details["chapter"]["number"],
-                        "chapter_title": details["chapter"]["title"],
-                        "part_number": details["part"]["number"],
-                        "part_title": details["part"]["title"],
-                        "paragraph_number": details["paragraph_number"],
-                        "law_url": details["law"]["source_url"],
-                        "chapter_url": details["chapter"]["source_url"],
-                        "part_url": details["part"]["source_url"],
-                    })
+                    similar_paragraphs.append(
+                        {
+                            "paragraph_id": paragraph_id,
+                            "similarity_score": similarity_score,
+                            "content": details["content"],
+                            "law_code": details["law"]["code"],
+                            "law_name": details["law"]["name"],
+                            "chapter_number": details["chapter"]["number"],
+                            "chapter_title": details["chapter"]["title"],
+                            "part_number": details["part"]["number"],
+                            "part_title": details["part"]["title"],
+                            "paragraph_number": details["paragraph_number"],
+                            "law_url": details["law"]["source_url"],
+                            "chapter_url": details["chapter"]["source_url"],
+                            "part_url": details["part"]["source_url"],
+                        }
+                    )
 
             logger.info(f"Found {len(similar_paragraphs)} similar paragraphs")
             return similar_paragraphs
@@ -165,13 +173,14 @@ class RAGSearchService:
         """Получение информаиии о пунктах из PostgreSQL"""
         try:
 
-            paragraph = self.db_session.query(LawParagraph).join(
-                LawPart, LawParagraph.part_id == LawPart.part_id
-            ).join(
-                LawChapter, LawPart.chapter_id == LawChapter.chapter_id
-            ).join(
-                Law, LawChapter.law_id == Law.law_id
-            ).filter(LawParagraph.paragraph_id == paragraph_id).first()
+            paragraph = (
+                self.db_session.query(LawParagraph)
+                .join(LawPart, LawParagraph.part_id == LawPart.part_id)
+                .join(LawChapter, LawPart.chapter_id == LawChapter.chapter_id)
+                .join(Law, LawChapter.law_id == Law.law_id)
+                .filter(LawParagraph.paragraph_id == paragraph_id)
+                .first()
+            )
 
             if not paragraph:
                 logger.warning(f"Пункт с ID {paragraph_id} не найден")
@@ -186,20 +195,20 @@ class RAGSearchService:
                     "part_id": paragraph.part.part_id,
                     "number": paragraph.part.number,
                     "title": paragraph.part.title,
-                    "source_url": paragraph.part.source_url
+                    "source_url": paragraph.part.source_url,
                 },
                 "chapter": {
                     "chapter_id": paragraph.part.chapter.chapter_id,
                     "number": paragraph.part.chapter.number,
                     "title": paragraph.part.chapter.title,
-                    "source_url": paragraph.part.chapter.source_url
+                    "source_url": paragraph.part.chapter.source_url,
                 },
                 "law": {
                     "law_id": paragraph.part.chapter.law.law_id,
                     "code": paragraph.part.chapter.law.code,
                     "name": paragraph.part.chapter.law.name,
-                    "source_url": paragraph.part.chapter.law.source_url
-                }
+                    "source_url": paragraph.part.chapter.law.source_url,
+                },
             }
 
             self.db_session.close()
@@ -222,18 +231,6 @@ class RAGSearchService:
             if self.db_session:
                 self.db_session.close()
             logger.info("Resources cleaned")
-            self._initialized = False
+            self.initialized = False
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
-
-
-rag_service_singleton: _Optional[RAGSearchService] = None
-
-
-def get_rag_service() -> RAGSearchService:
-    global rag_service_singleton
-    if rag_service_singleton is None:
-        rag_service_singleton = RAGSearchService()
-    if not rag_service_singleton._initialized:
-        rag_service_singleton.initialize()
-    return rag_service_singleton
