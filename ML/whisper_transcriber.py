@@ -1,8 +1,10 @@
-import whisper
-import os
 import asyncio
 import logging
-from .cuda_manager import cuda_manager
+import os
+
+import whisper
+
+from LLMawyer.ML.cuda_manager import CUDAManager
 
 """
 Модуль транскрипции аудио
@@ -14,29 +16,33 @@ logger = logging.getLogger(__name__)
 class WhisperTranscriber:
     """Класс для транскрипции голосовых сообщений с помощью Whisper"""
 
-    def __init__(self, model_size="tiny"):
+    def __init__(self, cuda_manager: CUDAManager, model_size="tiny"):
         """
         Инициализация транскриптора
-        
+
         Args:
             model_size (str): Размер модели Whisper (tiny, base, small, medium, large)
         """
         self.model_size = model_size
         # Модель
         self.model = None
-        self.device = cuda_manager.get_device()
-        self.device_name = cuda_manager.get_device_name()
-        self.is_cuda_enabled = cuda_manager.is_cuda_enabled()
+        self.cuda_manager = cuda_manager
+
+        self.device = self.cuda_manager.get_device()
+        self.device_name = self.cuda_manager.get_device_name()
+        self.is_cuda_enabled = self.cuda_manager.is_cuda_enabled()
 
     def _load_model(self):
         """Загружает модель Whisper на доступное устройство"""
         try:
-            device_info = cuda_manager.get_device_info()
+            device_info = self.cuda_manager.get_device_info()
             logger.info(f"Загружаю модель Whisper: {self.model_size}")
-            logger.info(f"🎮 Устройство: {device_info['name']} ({device_info['device']})")
+            logger.info(
+                f"🎮 Устройство: {device_info['name']} ({device_info['device']})"
+            )
 
-            if device_info['is_cuda']:
-                logger.info(f"🚀 Использую CUDA для ускорения транскрипции")
+            if device_info["is_cuda"]:
+                logger.info("🚀 Использую CUDA для ускорения транскрипции")
                 logger.info(f"💾 Память GPU: {device_info['memory_gb']} GB")
             else:
                 logger.info("⚠️ CUDA недоступна, используется CPU")
@@ -64,10 +70,10 @@ class WhisperTranscriber:
     async def transcribe_voice_message(self, voice_file_path: str) -> str:
         """
         Транскрибирует голосовое сообщение в текст
-        
+
         Args:
             voice_file_path (str): Путь к файлу голосового сообщения
-            
+
         Returns:
             str: Транскрибированный текст
         """
@@ -83,10 +89,14 @@ class WhisperTranscriber:
             if self.model is None:
                 self._load_model()
             # Выполняем транскрипцию в отдельном потоке, чтобы не блокировать event loop
-            result = await asyncio.to_thread(self.model.transcribe, voice_file_path, language="ru")
+            result = await asyncio.to_thread(
+                self.model.transcribe, voice_file_path, language="ru"
+            )
             transcribed_text = result["text"].strip()
 
-            logger.info(f"✅ Транскрипция завершена. Длина текста: {len(transcribed_text)} символов")
+            logger.info(
+                f"✅ Транскрипция завершена. Длина текста: {len(transcribed_text)} символов"
+            )
             logger.debug(f"Транскрибированный текст: {transcribed_text[:100]}...")
 
             return transcribed_text
@@ -112,7 +122,9 @@ class WhisperTranscriber:
             if not os.path.exists(temp_path):
                 raise FileNotFoundError(f"Файл не найден после скачивания: {temp_path}")
 
-            logger.info(f"Файл скачан успешно, размер: {os.path.getsize(temp_path)} байт")
+            logger.info(
+                f"Файл скачан успешно, размер: {os.path.getsize(temp_path)} байт"
+            )
 
             # Транскрипция
             text = await self.transcribe_voice_message(temp_path)
@@ -139,15 +151,5 @@ class WhisperTranscriber:
             "device": str(self.device),
             "device_name": self.device_name,
             "is_cuda_enabled": self.is_cuda_enabled,
-            "model_size": self.model_size
+            "model_size": self.model_size,
         }
-
-
-_transcriber_singleton = None
-
-
-def get_transcriber() -> WhisperTranscriber:
-    global _transcriber_singleton
-    if _transcriber_singleton is None:
-        _transcriber_singleton = WhisperTranscriber(model_size="base")
-    return _transcriber_singleton

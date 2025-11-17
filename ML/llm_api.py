@@ -1,5 +1,6 @@
 import os
-from typing import List, Dict
+from typing import Dict, List
+
 from ollama import Client
 
 """
@@ -12,7 +13,7 @@ class OllamaClient:
         """
         Клиент для работы с Ollama
         """
-        self.model = os.getenv('OLLAMA_MODEL')
+        self.model = os.getenv("OLLAMA_MODEL")
         self.client = Client()
 
     def create_chat_completion(self, messages: List[Dict[str, str]]):
@@ -20,26 +21,26 @@ class OllamaClient:
         response = self.client.chat(self.model, messages=messages, stream=True)
         result = ""
         for part in response:
-            result += part['message']['content']
+            result += part["message"]["content"]
         return result
 
     def get_answer(self, user_question, paragraphs):
         system_message = {
             "role": "system",
             "content": (
-                """Ты — юридический консультант, специализирующийся на законодательстве Российской Федерации. Твоя 
-                задача — давать точные, аккуратные и нейтральные ответы на вопросы пользователей только на основе 
-                предоставленных фрагментов законодательства. Если информации в этих фрагментах недостаточно для 
-                уверенного ответа, дай общий ответ на вопрос пользователя и предположи, какие дополнительные нормы 
-                могли бы быть релевантны, не придумывая законы. Пиши понятным юридическим языком, избегай чрезмерно 
+                """Ты — юридический консультант, специализирующийся на законодательстве Российской Федерации. Твоя
+                задача — давать точные, аккуратные и нейтральные ответы на вопросы пользователей только на основе
+                предоставленных фрагментов законодательства. Если информации в этих фрагментах недостаточно для
+                уверенного ответа, дай общий ответ на вопрос пользователя и предположи, какие дополнительные нормы
+                могли бы быть релевантны, не придумывая законы. Пиши понятным юридическим языком, избегай чрезмерно
                 сложных формулировок."""
-            )
+            ),
         }
 
         context_text = "\n\n".join(paragraphs)
         user_message = {
             "role": "user",
-            "content": f"Вопрос: {user_question}\n\nСтатьи, отвечающие на вопрос:\n{context_text}"
+            "content": f"Вопрос: {user_question}\n\nСтатьи, отвечающие на вопрос:\n{context_text}",
         }
 
         messages = [system_message, user_message]
@@ -48,7 +49,4 @@ class OllamaClient:
         return result
 
     def get_info(self):
-        return {'model_name': self.model}
-
-
-ollama_client = OllamaClient()
+        return {"model_name": self.model}
