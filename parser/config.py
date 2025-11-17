@@ -1,9 +1,11 @@
 import os
+
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
-from .models import Base
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session, sessionmaker
+
+from .models import Base
 
 """
 Конфигурация для подключения к PostgreSQL.
@@ -14,13 +16,13 @@ load_dotenv()
 
 class DatabaseConfig:
     """Конфигурация базы данных"""
-    
+
     # Параметры подключения к PostgreSQL
-    DB_HOST = os.getenv('DB_HOST', 'localhost')
-    DB_PORT = os.getenv('DB_PORT', '5432')
-    DB_NAME = os.getenv('DB_NAME', 'llmawyer')
-    DB_USER = os.getenv('DB_USER', 'postgres')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_NAME = os.getenv("DB_NAME", "llmawyer")
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
 
     @classmethod
     def get_database_url(cls) -> str:
@@ -40,7 +42,9 @@ class DatabaseManager:
         """
         self.database_url = database_url
         self.engine = create_engine(database_url, echo=False)
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=self.engine
+        )
 
     def create_tables(self):
         """Создание всех таблиц в базе данных"""
@@ -67,10 +71,14 @@ class DatabaseManager:
             return False
 
 
-db_config = DatabaseConfig()
-DATABASE_URL = db_config.get_database_url()
-# Создаем менеджер базы данных
-db_manager = DatabaseManager(DATABASE_URL)
+def get_db_manager():
+    db_config = DatabaseConfig()
+    DATABASE_URL = db_config.get_database_url()
+    # Создаем менеджер базы данных
+    db_manager = DatabaseManager(DATABASE_URL)
+    return db_manager
+
 
 if __name__ == "__main__":
+    db_manager = get_db_manager()
     db_manager.create_tables()
