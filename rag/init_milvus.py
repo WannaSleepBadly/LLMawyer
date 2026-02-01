@@ -10,6 +10,13 @@ from LLMawyer.rag.rag_search import RAGSearchService
 Скрипт для инициализации и заполнения Milvus базы данных эмбеддингами пунктов закона.
 """
 
+logging.basicConfig(
+    level=logging.DEBUG,  # Уровень DEBUG покажет ВСЕ сообщения
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)],  # Вывод в консоль
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +38,13 @@ def main():
     logger.info(f"🔄 Используем модель эмбеддингов: {embedding_model}")
 
     # Инициализируем RAG сервис
-    rag_service = RAGSearchService()
+    from LLMawyer.parser.config import get_db_manager
+    from LLMawyer.rag.embedding_service import EmbeddingService
+    from LLMawyer.rag.milvus_manager import MilvusManager
+
+    rag_service = RAGSearchService(
+        MilvusManager(), EmbeddingService(), get_db_manager()
+    )
 
     try:
         # Инициализируем сервис

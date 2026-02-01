@@ -11,12 +11,12 @@ from telegram.ext import (
     filters,
 )
 
-from commands.start import start_command
-from commands.status import status_command
-from handlers.buttons import button_callback
-from handlers.other import handle_other
-from handlers.text import handle_text
-from handlers.voice import handle_voice
+from LLMawyer.commands.start import start_command
+from LLMawyer.commands.status import status_command
+from LLMawyer.handlers.buttons import button_callback
+from LLMawyer.handlers.other import handle_other
+from LLMawyer.handlers.text import handle_text
+from LLMawyer.handlers.voice import handle_voice
 from LLMawyer.ML.cuda_manager import CUDAManager
 from LLMawyer.ML.llm_api import OllamaClient
 from LLMawyer.ML.text_processor import TextProcessor
