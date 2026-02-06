@@ -17,11 +17,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
     # Отправляем индикатор обработки
-    processing_msg = await update.message.reply_text("⏳ Идёт обработка...")
+    processing_msg = await update.message.reply_text("Идёт обработка...")
 
-    # Получаем ответ из ML модуля в отдельном потоке (CPU-bound / блокирующие вызовы)
-    text_processor = context.bot_data["text_processor"]
-    response = await asyncio.to_thread(text_processor.generate_response, text)
+    # Получаем ответ от агента
+    agent = context.bot_data["agent"]
+    response = await asyncio.to_thread(agent.generate_response, text)
 
     # Удаляем сообщение об обработке и отправляем ответ
     await processing_msg.delete()
