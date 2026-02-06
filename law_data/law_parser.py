@@ -1,13 +1,12 @@
+import asyncio
+import json
+import re
+from typing import Dict, List, Optional
+from urllib.parse import urljoin, urlparse, urlunparse
+
 import aiohttp
 from bs4 import BeautifulSoup, Tag
 from fake_useragent import UserAgent
-from urllib.parse import urljoin, urlparse, urlunparse
-
-import asyncio
-import re
-import json
-from typing import List, Dict, Optional
-
 
 """
 Парсинг текстов законов с КонсультантПлюс
@@ -32,7 +31,9 @@ class LegalContentScraper:
             "User-Agent": UserAgent().random,
             "Accept-Language": "ru-RU,ru;q=0.9",
         }
-        return aiohttp.ClientSession(headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout))
+        return aiohttp.ClientSession(
+            headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout)
+        )
 
     async def _request(self, url: str) -> str:
         """Выполняет HTTP‑запрос с повторными попытками"""
@@ -71,7 +72,9 @@ class LegalContentScraper:
             parsed = urlparse(url.lower())
             # Удаляем якоря и несущественные параметры
             clean_path = parsed.path.rstrip("/")
-            normalized_url = urlunparse((parsed.scheme, parsed.netloc, clean_path, "", "", ""))
+            normalized_url = urlunparse(
+                (parsed.scheme, parsed.netloc, clean_path, "", "", "")
+            )
 
             if normalized_url in self.seen_urls:
                 continue
@@ -104,7 +107,9 @@ class LegalContentScraper:
         return chapters
 
     @staticmethod
-    def _sanitize_node(node: Tag, remove_tags: List[str], remove_classes: List[str]) -> None:
+    def _sanitize_node(
+        node: Tag, remove_tags: List[str], remove_classes: List[str]
+    ) -> None:
         """Удаляет нежелательные элементы из DOM‑узла"""
 
         for selector in remove_classes:
@@ -130,7 +135,9 @@ class LegalContentScraper:
                 ".document-page__banner-middle",
             ],
         )
-        lines = [line.strip() for line in node.get_text("\n").split("\n") if line.strip()]
+        lines = [
+            line.strip() for line in node.get_text("\n").split("\n") if line.strip()
+        ]
         return "\n".join(lines).strip()
 
     @staticmethod
@@ -138,21 +145,23 @@ class LegalContentScraper:
         """Разделение текста статьи на пункты и подпункты"""
 
         paragraphs = []
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
         current_paragraph = None  # номер текущего основного пункта (например, "4")
-        current_content = []  # накапливаемый текст основного пункта (до появления подпунктов)
+        current_content = (
+            []
+        )  # накапливаемый текст основного пункта (до появления подпунктов)
         subitems = []  # список подпунктов: [{"number": "4.1", "content": "..."}, ...]
 
         # Регулярное выражение для основного пункта:
         # - начинается с начала строки
         # - содержит цифры, точки, дефисы (например, 3.13-1, 4.1, 5)
         # - после номера идёт точка и пробел/текст
-        main_paragraph_pattern = r'^(?!\s*[#.).]\s*)(\d+(?:[.\-]\d+)*)\.\s+(.*)'
+        main_paragraph_pattern = r"^(?!\s*[#.).]\s*)(\d+(?:[.\-]\d+)*)\.\s+(.*)"
 
         # Регулярное выражение для подпункта:
         # - начинается с начала строки
         # - содержит номер/букву + скобку (1), а), i))
-        subitem_pattern = r'^\s*([0-9]+)\)\s+(.*?)\s*$'
+        subitem_pattern = r"^\s*([0-9]+)\)\s+(.*?)\s*$"
 
         for line in lines:
             main_match = re.match(main_paragraph_pattern, line)
@@ -164,10 +173,9 @@ class LegalContentScraper:
                         paragraphs.extend(subitems)
                     else:
                         current_content = " ".join(current_content).strip()
-                        paragraphs.append({
-                            "number": current_paragraph,
-                            "content": current_content
-                        })
+                        paragraphs.append(
+                            {"number": current_paragraph, "content": current_content}
+                        )
 
                 # Начинаем новый основной пункт
                 current_paragraph = main_match.group(1)
@@ -183,17 +191,18 @@ class LegalContentScraper:
                 try:
                     subitem_idx = int(subitem_num)  # если число — используем как индекс
                 except ValueError:
-                    subitem_idx = ord(subitem_num.lower()) - ord('а') + 1  # для букв: а→1, б→2...
+                    subitem_idx = (
+                        ord(subitem_num.lower()) - ord("а") + 1
+                    )  # для букв: а→1, б→2...
 
                 # Делаем номер подпункта составным
                 subitem_full_number = f"{current_paragraph}. Подпункт {subitem_idx}"
 
                 # Для каждого подпункта записываем текст главного пункта
                 subitem_text = " ".join(current_content).strip() + subitem_text
-                subitems.append({
-                    "number": subitem_full_number,
-                    "content": subitem_text
-                })
+                subitems.append(
+                    {"number": subitem_full_number, "content": subitem_text}
+                )
 
             else:
                 # Продолжение текста (не начало нового пункта/подпункта)
@@ -214,19 +223,15 @@ class LegalContentScraper:
                 paragraphs.extend(subitems)
             else:
                 current_content = " ".join(current_content).strip()
-                paragraphs.append({
-                    "number": current_paragraph,
-                    "content": current_content
-                })
+                paragraphs.append(
+                    {"number": current_paragraph, "content": current_content}
+                )
 
         # В тексте статьи нет подпунктов
         if not paragraphs:
-            lines = [line for line in lines if 'Статья' not in line]
+            lines = [line for line in lines if "Статья" not in line]
             lines = " ".join(lines)
-            paragraphs = [
-                {"number": "",
-                 "content": lines}
-            ]
+            paragraphs = [{"number": "", "content": lines}]
         return paragraphs
 
     async def scrape_article(self, article_url: str) -> Dict[str, str]:
@@ -253,20 +258,21 @@ class LegalContentScraper:
 
         # Определение названия закона
         title_el = soup.select_one(".document-page__content .doc-style h1")
-        title = title_el.get_text(" ", strip=True) if title_el else (
-            soup.title.get_text(" ", strip=True) if soup.title else law_url)
-        title = title.replace(" \ КонсультантПлюс", "")
+        title = (
+            title_el.get_text(" ", strip=True)
+            if title_el
+            else (soup.title.get_text(" ", strip=True) if soup.title else law_url)
+        )
+        title = title.replace(" \\ КонсультантПлюс", "")
 
         # Определение номера закона
         # TODO Убрала постфикс ФЗ, проверить, как распознаётся
-        pattern = r'N\s*(\d+)'
+        pattern = r"N\s*(\d+)"
         match = re.search(pattern, title, re.IGNORECASE)
         code = match.group(1) if match else None
 
         # TODO сохранение аннотации закона (текст перед главами и статьями)
-        law = {"title": title,
-               "source_url": law_url,
-               "code": code}
+        law = {"title": title, "source_url": law_url, "code": code}
 
         structure = self._extract_nav_structure(soup=soup, base_url=law_url)
         for chapter in structure:
@@ -274,16 +280,20 @@ class LegalContentScraper:
             articles = []
             for article in chapter["articles"]:
                 print(f"    ➜ Статья: {article['title']}")
-                if 'утратила силу' not in article['title'].lower():
+                if "утратила силу" not in article["title"].lower():
                     a_data = await self.scrape_article(article["source_url"])
                     paragraphs = self._split_into_paragraphs(a_data["text"])
-                    article['paragraphs'] = paragraphs
+                    article["paragraphs"] = paragraphs
                     articles.append(article)
 
             chapter["articles"] = articles
 
-        structure = [chapter for chapter in structure if not 'утратила силу' in chapter['title'].lower()]
-        law['chapters'] = structure
+        structure = [
+            chapter
+            for chapter in structure
+            if "утратила силу" not in chapter["title"].lower()
+        ]
+        law["chapters"] = structure
 
         print(f"[SUCCESS] Закон {law_url} обработан.\n")
         return [law]
@@ -316,10 +326,10 @@ async def main():
     """Точка входа: запускает парсер и обрабатывает заданные URL."""
     # TODO Добавить ФЗ о СМИ, банкротстве, перрсональных данных
     urls = [
-         "https://www.consultant.ru/document/cons_doc_LAW_58968/",  # О рекламе
-         "https://www.consultant.ru/document/cons_doc_LAW_305/",    # О защите прав потребителей
-         "https://www.consultant.ru/document/cons_doc_LAW_61763/",  # О защите конкуренции
-         "https://www.consultant.ru/document/cons_doc_LAW_61798/",  # Об информации, ИТ и защите информации
+        "https://www.consultant.ru/document/cons_doc_LAW_58968/",  # О рекламе
+        "https://www.consultant.ru/document/cons_doc_LAW_305/",  # О защите прав потребителей
+        "https://www.consultant.ru/document/cons_doc_LAW_61763/",  # О защите конкуренции
+        "https://www.consultant.ru/document/cons_doc_LAW_61798/",  # Об информации, ИТ и защите информации
     ]
 
     scraper = LegalContentScraper(timeout_sec=25, max_retries=4)

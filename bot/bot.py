@@ -5,26 +5,18 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     Application,
-    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     filters,
 )
 
-from LLMawyer.commands.start import start_command
-from LLMawyer.commands.status import status_command
-from LLMawyer.handlers.buttons import button_callback
-from LLMawyer.handlers.other import handle_other
-from LLMawyer.handlers.text import handle_text
-from LLMawyer.handlers.voice import handle_voice
-from LLMawyer.ML.cuda_manager import CUDAManager
-from LLMawyer.ML.llm_api import OllamaClient
-from LLMawyer.ML.text_processor import TextProcessor
-from LLMawyer.ML.whisper_transcriber import WhisperTranscriber
-from LLMawyer.parser.config import get_db_manager
-from LLMawyer.rag.embedding_service import EmbeddingService
-from LLMawyer.rag.milvus_manager import MilvusManager
-from LLMawyer.rag.rag_search import RAGSearchService
+from LLMawyer.agent.agent_wrapper import AgentWrapper
+from LLMawyer.bot.commands.start import start_command
+from LLMawyer.bot.commands.status import status_command
+from LLMawyer.bot.handlers.other import handle_other
+from LLMawyer.bot.handlers.text import handle_text
+from LLMawyer.bot.handlers.voice import handle_voice
+from LLMawyer.tts.transcriber import WhisperTranscriber
 
 logger = logging.getLogger(__name__)
 
@@ -42,43 +34,20 @@ class BotApp:
         self.application: Application | None = None
 
         # Внутренние сервисы
-        self.cuda_manager = None
         self.transcriber = None
-        self.milvus_manager = None
-        self.embedding_service = None
-        self.db_manager = None
-        self.rag_service = None
-        self.ollama_client = None
-        self.text_processor = None
+        self.agent = None
 
     def init_services(self):
         """Инициализация всех вычислительных моделей и бэкендов."""
-        logger.info("⚙ Загружаю сервисы...")
+        logger.info("Загружаю сервисы...")
 
-        self.cuda_manager = CUDAManager()
+        self.transcriber = WhisperTranscriber()
+        self.transcriber.load_model()
+        logger.info("Whisper загружен")
 
-        # Whisper
-        self.transcriber = WhisperTranscriber(self.cuda_manager)
-        self.transcriber._load_model()
-        logger.info("🎤 Whisper загружен")
-
-        # RAG
-        self.milvus_manager = MilvusManager()
-        self.embedding_service = EmbeddingService()
-        self.db_manager = get_db_manager()
-
-        self.rag_service = RAGSearchService(
-            self.milvus_manager, self.embedding_service, self.db_manager
-        )
-
-        if not self.rag_service.initialized:
-            self.rag_service.initialize()
-        logger.info("📚 RAG поисковый сервис инициализирован")
-
-        # LLM
-        self.ollama_client = OllamaClient()
-        self.text_processor = TextProcessor(self.rag_service, self.ollama_client)
-        logger.info("🤖 LLM и TextProcessor готовы")
+        # Агент (включает RAG и LLM)
+        self.agent = AgentWrapper()
+        logger.info("Агент готов")
 
     def init_handlers(self):
         app = self.application
@@ -86,9 +55,6 @@ class BotApp:
         # Команды
         app.add_handler(CommandHandler("start", start_command))
         app.add_handler(CommandHandler("status", status_command))
-
-        # Кнопки
-        app.add_handler(CallbackQueryHandler(button_callback))
 
         # Голос
         app.add_handler(MessageHandler(filters.VOICE, handle_voice))
@@ -101,10 +67,10 @@ class BotApp:
 
     async def on_bot_ready(self, app):
         app.bot_data["transcriber"] = self.transcriber
-        app.bot_data["text_processor"] = self.text_processor
+        app.bot_data["agent"] = self.agent
 
     def run(self):
-        logger.info("🚀 Запуск Telegram-бота...")
+        logger.info("Запуск Telegram-бота...")
 
         self.application = (
             Application.builder()

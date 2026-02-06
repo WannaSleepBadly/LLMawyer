@@ -2,6 +2,7 @@ import logging
 import os
 from typing import List, Optional
 
+from langchain.embeddings.base import Embeddings
 from sentence_transformers import SentenceTransformer, models
 
 """
@@ -11,7 +12,7 @@ from sentence_transformers import SentenceTransformer, models
 logger = logging.getLogger(__name__)
 
 
-class EmbeddingService:
+class EmbeddingService(Embeddings):
     """Модель эмбеддингов"""
 
     def __init__(self):
@@ -51,7 +52,7 @@ class EmbeddingService:
             logger.error(f"Ошибка загрузки модели: {e}")
             return False
 
-    def encode_text(self, text: str) -> Optional[List[float]]:
+    def embed_query(self, text: str) -> Optional[List[float]]:
         """Получение эмбеддингов для текста"""
         if not self.model:
             logger.error("Модель не загружена")
@@ -70,7 +71,7 @@ class EmbeddingService:
             logger.error(f"Ошибка получения эмбеддингов: {e}")
             return None
 
-    def encode_batch(
+    def embed_documents(
         self, texts: List[str], batch_size: int = 32
     ) -> List[Optional[List[float]]]:
         """Получение эмбеддингов для батчей текста"""
@@ -112,10 +113,6 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Ошибка в получении эмбеддингов для батча: {e}")
             return [None] * len(texts)
-
-    def get_embedding_dimension(self) -> Optional[int]:
-        """Получить размер эмбеддингов"""
-        return self.embedding_dim
 
     def get_model_info(self) -> dict:
         """Получить информацию о модели"""
