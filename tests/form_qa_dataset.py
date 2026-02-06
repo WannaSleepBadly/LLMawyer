@@ -1,8 +1,13 @@
 import csv
+import os
 
-from LLMawyer.ML.llm_api import OllamaClient
+from dotenv import load_dotenv
+from langchain_ollama import ChatOllama
+
 from LLMawyer.parser.config import get_db_manager
 from LLMawyer.parser.models import Law, LawChapter, LawParagraph, LawPart
+
+load_dotenv()
 
 OUTPUT_CSV = "tests/qa_dataset.csv"
 
@@ -80,14 +85,14 @@ def generate_question(context: dict) -> str:
     Ответ: только вопрос или SKIP.
     """
 
-    system_message = {"role": "system", "content": prompt}
+    # Используем ChatOllama для генерации вопроса
+    from langchain_core.messages import SystemMessage
 
-    messages = [system_message]
-
-    result = ollama_client.create_chat_completion(messages=messages)
+    langchain_messages = [SystemMessage(content=prompt)]
+    result = ollama_client.invoke(langchain_messages)
 
     # удаляем возможные маркеры, точки и т.п.
-    return result.replace("\n", " ").strip()
+    return result.content.replace("\n", " ").strip()
 
 
 def main():
@@ -166,5 +171,15 @@ def main():
 
 if __name__ == "__main__":
     db_manager = get_db_manager()
-    ollama_client = OllamaClient()
+    # Используем ChatOllama напрямую для тестов
+    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2")
+    ollama_client = ChatOllama(model=ollama_model)
+
+    # Делаем ollama_client доступным в generate_question
+    import sys
+
+    module = sys.modules[__name__]
+    module.ollama_client = ollama_client
+    module.db_manager = db_manager
+
     main()

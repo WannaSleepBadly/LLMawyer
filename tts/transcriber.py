@@ -2,9 +2,8 @@ import asyncio
 import logging
 import os
 
+import torch.cuda
 import whisper
-
-from LLMawyer.ML.cuda_manager import CUDAManager
 
 """
 Модуль транскрипции аудио
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class WhisperTranscriber:
     """Класс для транскрипции голосовых сообщений с помощью Whisper"""
 
-    def __init__(self, cuda_manager: CUDAManager, model_size="tiny"):
+    def __init__(self, model_size="tiny"):
         """
         Инициализация транскриптора
 
@@ -26,43 +25,32 @@ class WhisperTranscriber:
         self.model_size = model_size
         # Модель
         self.model = None
-        self.cuda_manager = cuda_manager
 
-        self.device = self.cuda_manager.get_device()
-        self.device_name = self.cuda_manager.get_device_name()
-        self.is_cuda_enabled = self.cuda_manager.is_cuda_enabled()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    def _load_model(self):
+    def load_model(self):
         """Загружает модель Whisper на доступное устройство"""
         try:
-            device_info = self.cuda_manager.get_device_info()
-            logger.info(f"Загружаю модель Whisper: {self.model_size}")
             logger.info(
-                f"🎮 Устройство: {device_info['name']} ({device_info['device']})"
+                f"Загружаю модель Whisper: {self.model_size}. Устройство: {self.device}"
             )
-
-            if device_info["is_cuda"]:
-                logger.info("🚀 Использую CUDA для ускорения транскрипции")
-                logger.info(f"💾 Память GPU: {device_info['memory_gb']} GB")
-            else:
-                logger.info("⚠️ CUDA недоступна, используется CPU")
 
             # Загружаем модель на указанное устройство
             self.model = whisper.load_model(self.model_size, device=self.device)
 
-            logger.info("✅ Модель Whisper успешно загружена")
+            logger.info("Модель Whisper успешно загружена")
 
         except Exception as e:
-            logger.error(f"❌ Ошибка загрузки модели Whisper: {e}")
+            logger.error(f"Ошибка загрузки модели Whisper: {e}")
             # Fallback на CPU если CUDA не работает
-            if self.is_cuda_enabled:
-                logger.warning("🔄 Пытаюсь загрузить модель на CPU...")
+            if self.device == "cuda":
+                logger.warning("Пытаюсь загрузить модель на CPU...")
                 try:
                     self.device = "cpu"
                     self.model = whisper.load_model(self.model_size, device=self.device)
-                    logger.info("✅ Модель успешно загружена на CPU")
+                    logger.info("Модель успешно загружена на CPU")
                 except Exception as cpu_error:
-                    logger.error(f"❌ Ошибка загрузки на CPU: {cpu_error}")
+                    logger.error(f"Ошибка загрузки на CPU: {cpu_error}")
                     raise
             else:
                 raise
@@ -79,7 +67,6 @@ class WhisperTranscriber:
         """
         try:
             logger.info(f"Начинаю транскрипцию файла: {voice_file_path}")
-            logger.info(f"🎮 Использую устройство: {self.device_name}")
 
             # Проверяем существование файла
             if not os.path.exists(voice_file_path):
@@ -87,17 +74,14 @@ class WhisperTranscriber:
 
             # Lazy load модели при первом обращении
             if self.model is None:
-                self._load_model()
+                self.load_model()
             # Выполняем транскрипцию в отдельном потоке, чтобы не блокировать event loop
             result = await asyncio.to_thread(
                 self.model.transcribe, voice_file_path, language="ru"
             )
             transcribed_text = result["text"].strip()
 
-            logger.info(
-                f"✅ Транскрипция завершена. Длина текста: {len(transcribed_text)} символов"
-            )
-            logger.debug(f"Транскрибированный текст: {transcribed_text[:100]}...")
+            logger.info(f"Транскрибированный текст: {transcribed_text[:100]}...")
 
             return transcribed_text
 
@@ -128,7 +112,6 @@ class WhisperTranscriber:
 
             # Транскрипция
             text = await self.transcribe_voice_message(temp_path)
-            logger.info("✅ Транскрипция завершена")
 
             return text
 
@@ -141,7 +124,7 @@ class WhisperTranscriber:
             try:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
-                    logger.info("🧹 Временный файл удалён")
+                    logger.info("Временный файл удалён")
             except Exception as e:
                 logger.warning(f"Не удалось удалить временный файл: {e}")
 
@@ -149,7 +132,5 @@ class WhisperTranscriber:
         """Возвращает информацию об используемом устройстве"""
         return {
             "device": str(self.device),
-            "device_name": self.device_name,
-            "is_cuda_enabled": self.is_cuda_enabled,
             "model_size": self.model_size,
         }
