@@ -3,4 +3,5 @@
 **/__pycache__/
 *.py[cod]
 *$py.class
-parser/laws.json
+law_data/laws.json
+tests/tests

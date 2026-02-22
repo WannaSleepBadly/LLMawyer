@@ -36,25 +36,25 @@ pip install -r requirements.txt
 
 ### 5. Парсинг закона
 ```bash
-python parser.law_parser
+python law_data.law_parser
 ```
 В результате будет получен `laws.json` с текстами законов. 
 
 ### 6. Занесение данных в postgres
 ```bash
-python parser.repository
+python law_data.repository
 ```
 
 ### 7. Заполнение milvus
 Запустите docker контейнер с milvus
 ```bash
-python -m rag.init_milvus
+python -m agent.setup.init_milvus
 ```
 
 ### 8. Запуск
 
 ```bash
-python bot.py
+python bot.bot.py
 ```
 
 ## Структура базы данных

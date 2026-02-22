@@ -6,6 +6,23 @@ DB_NAME=llmawyer
 DB_USER=postgres
 DB_PASSWORD=password
 
-EMBEDDING_MODEL='TryDotAtwo/ruBERT-ruLaw'
+EMBEDDING_MODEL=deepvk/USER-bge-m3
 
-OLLAMA_MODEL='gpt-oss:120b-cloud'
+OLLAMA_ENDPOINT=http://localhost:11434/api
+OLLAMA_API=ollama_api_key
+OLLAMA_MODEL=gpt-oss:120b-cloud
+
+LANGFUSE_SECRET_KEY=langfuse_cloud_secret_key
+LANGFUSE_PUBLIC_KEY=langfuse_cloud_public_key
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+
+TAVILY_API_KEY=tavily_api
+TAVILY_MAX_RESULTS=5
+
+MILVUS_URI=tcp://localhost:19530
+MILVUS_TOKEN=root:Milvus
+MILVUS_DB_NAME=default
+MILVUS_COLLECTION_NAME=law_paragraphs
+MILVUS_METRIC_TYPE=COSINE
+MILVUS_INDEX_TYPE=IVF_FLAT
+MILVUS_NLIST=128
