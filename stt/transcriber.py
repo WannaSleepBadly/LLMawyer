@@ -12,7 +12,7 @@ import whisper
 logger = logging.getLogger(__name__)
 
 
-class WhisperTranscriber:
+class Transcriber:
     """Класс для транскрипции голосовых сообщений с помощью Whisper"""
 
     def __init__(self, model_size="tiny"):

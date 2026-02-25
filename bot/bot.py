@@ -16,7 +16,7 @@ from LLMawyer.bot.commands.status import status_command
 from LLMawyer.bot.handlers.other import handle_other
 from LLMawyer.bot.handlers.text import handle_text
 from LLMawyer.bot.handlers.voice import handle_voice
-from LLMawyer.tts.transcriber import WhisperTranscriber
+from LLMawyer.stt.transcriber import Transcriber
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class BotApp:
         """Инициализация всех вычислительных моделей и бэкендов."""
         logger.info("Загружаю сервисы...")
 
-        self.transcriber = WhisperTranscriber()
+        self.transcriber = Transcriber()
         self.transcriber.load_model()
         logger.info("Whisper загружен")
 
